@@ -25,6 +25,8 @@ module Infraset
 
     def run
       print_banner
+
+      logger.info "What now?"
     end
 
     private
@@ -44,10 +46,6 @@ module Infraset
     | | | | |  _| | | (_| \\__ \\  __/ |_
     |_|_| |_|_| |_|  \\__,_|___/\___|\\__|  #{config.user_agent}
 }
-      end
-
-      def client
-        @client ||= Infraset::Client.new
       end
 
   end

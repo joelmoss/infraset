@@ -1,3 +1,5 @@
+require 'logger'
+
 require 'infraset/version'
 require 'infraset/configuration'
 
