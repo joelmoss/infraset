@@ -1,0 +1,21 @@
+#!/usr/bin/env ruby
+
+# Disable stdout,stderr buffering
+STDERR.sync = STDOUT.sync = true
+
+# Set the process name before we go to far in
+$PROGRAM_NAME = 'infraset'
+
+$:.push File.expand_path('../../lib', __FILE__)
+require 'infraset/cli'
+
+begin
+  cli = Infraset::CLI.instance
+  cli.parse! ARGV
+  cli.run
+rescue => e
+  raise e
+  STDERR.puts e.message
+  STDERR.puts e.backtrace.join("\n")
+  exit 1
+end
