@@ -1,9 +1,9 @@
 module Infraset
   class Configuration
+    extend Mixlib::Config
 
-    def user_agent
-      "infraset/#{Infraset::VERSION} (#{RUBY_PLATFORM})"
-    end
+    log_level :info
+    resource_path "./"
 
   end
 end

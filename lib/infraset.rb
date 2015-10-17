@@ -1,20 +1,12 @@
-require 'logger'
+require 'mixlib/log'
 
 require 'infraset/version'
 require 'infraset/configuration'
 
 module Infraset
-  NAME = 'Infraset'
+  Mixlib::Log::Formatter.show_time = false
 
-  def self.config
-    @config ||= Configuration.new
+  class Log
+    extend Mixlib::Log
   end
-
-  def self.logger
-    @logger ||= Logger.new(STDOUT).tap do |l|
-      l.level = Logger::INFO
-      l.progname = 'INFRASET'
-    end
-  end
-
 end

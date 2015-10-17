@@ -2,6 +2,9 @@ PATH
   remote: .
   specs:
     infraset (0.1.0)
+      mixlib-cli
+      mixlib-config
+      mixlib-log
 
 GEM
   remote: https://rubygems.org/
@@ -32,6 +35,9 @@ GEM
       multipart-post (>= 1.2, < 3)
     ffi (1.9.10)
     gherkin3 (3.1.2)
+    mixlib-cli (1.5.0)
+    mixlib-config (2.2.1)
+    mixlib-log (1.6.0)
     multi_json (1.11.2)
     multi_test (0.1.2)
     multipart-post (2.0.0)

@@ -2,11 +2,15 @@ module Infraset
   module Utilities
 
     def logger
-      Infraset.logger
+      Infraset::Log
     end
 
     def config
-      Infraset.config
+      Configuration
+    end
+
+    def user_agent
+      "infraset/#{Infraset::VERSION} (#{RUBY_PLATFORM})"
     end
 
     def debug(program, message)
