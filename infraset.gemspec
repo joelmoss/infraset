@@ -17,6 +17,7 @@ Gem::Specification.new do |spec|
   spec.add_dependency 'mixlib-cli'
   spec.add_dependency 'mixlib-config'
   spec.add_dependency 'mixlib-log'
+  spec.add_dependency 'activesupport'
 
   spec.add_development_dependency 'bundler',   '~> 1.7'
   spec.add_development_dependency 'rake',      '~> 10.0'

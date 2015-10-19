@@ -2,6 +2,7 @@ PATH
   remote: .
   specs:
     infraset (0.1.0)
+      activesupport
       mixlib-cli
       mixlib-config
       mixlib-log
@@ -9,6 +10,12 @@ PATH
 GEM
   remote: https://rubygems.org/
   specs:
+    activesupport (4.2.4)
+      i18n (~> 0.7)
+      json (~> 1.7, >= 1.7.7)
+      minitest (~> 5.1)
+      thread_safe (~> 0.3, >= 0.3.4)
+      tzinfo (~> 1.1)
     addressable (2.3.8)
     aruba (0.9.0)
       childprocess (~> 0.5.6)
@@ -35,6 +42,9 @@ GEM
       multipart-post (>= 1.2, < 3)
     ffi (1.9.10)
     gherkin3 (3.1.2)
+    i18n (0.7.0)
+    json (1.8.3)
+    minitest (5.8.1)
     mixlib-cli (1.5.0)
     mixlib-config (2.2.1)
     mixlib-log (1.6.0)
@@ -61,6 +71,9 @@ GEM
       addressable (~> 2.3.5)
       faraday (~> 0.8, < 0.10)
     thor (0.19.1)
+    thread_safe (0.3.5)
+    tzinfo (1.2.2)
+      thread_safe (~> 0.1)
 
 PLATFORMS
   ruby

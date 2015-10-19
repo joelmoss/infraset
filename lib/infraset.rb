@@ -1,4 +1,5 @@
 require 'mixlib/log'
+require 'active_support/inflector'
 
 require 'infraset/version'
 require 'infraset/configuration'

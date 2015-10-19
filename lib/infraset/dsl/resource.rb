@@ -5,14 +5,19 @@ module Infraset
     class Resource
       include Utilities
 
-      attr_reader :name
+      attr_reader :namespace, :type
 
       def initialize(namespace, type)
-        logger.debug "Resource '#{namespace}:#{type}'"
+        @namespace, @type = namespace, type
+        logger.info "Resource '#{namespace}:#{type}'"
       end
 
       def name(value)
         @name = value
+      end
+
+      def to_s
+        "#{namespace}:#{type}"
       end
     end
   end
