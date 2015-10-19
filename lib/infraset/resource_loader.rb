@@ -27,7 +27,7 @@ module Infraset
 
     def evaluate(&block)
       @resource_object = @resource_class_name.new(self)
-      @resource_object.evaluate &block
+      @resource_object.evaluate &block if block_given?
     end
 
     def resource

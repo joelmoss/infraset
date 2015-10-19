@@ -3,9 +3,9 @@ require 'infraset/resource'
 module Infraset
   class Resources
     class Aws
-      class Human < Infraset::Resource
+      class Route53Zone < Infraset::Resource
 
-        expose_accessor :age
+        attribute :comment, String
 
       end
     end

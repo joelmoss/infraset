@@ -5,7 +5,7 @@ module Infraset
     class Aws
       class Animal < Infraset::Resource
 
-        expose_accessor :species
+        expose :species, String
 
       end
     end
