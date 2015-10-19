@@ -1,14 +1,15 @@
-require 'infraset/utilities'
+require 'infraset/resource'
 
 module Infraset
   class Resources
     class Aws
-      class Animal
-        include Infraset::Utilities
+      class Animal < Infraset::Resource
 
         def species(value)
           @species = value
         end
+        expose :species
+
       end
     end
   end
