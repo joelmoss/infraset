@@ -5,10 +5,7 @@ module Infraset
     class Aws
       class Animal < Infraset::Resource
 
-        def species(value)
-          @species = value
-        end
-        expose :species
+        expose_accessor :species
 
       end
     end

@@ -5,10 +5,7 @@ module Infraset
     class Aws
       class Human < Infraset::Resource
 
-        def age(number)
-          @age = number
-        end
-        expose :age
+        expose_accessor :age
 
       end
     end
