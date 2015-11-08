@@ -4,6 +4,7 @@ module Infraset
 
     log_level :info
     resource_path "./"
+    state_file "infraset.json"
 
   end
 end

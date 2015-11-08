@@ -5,9 +5,13 @@ module Infraset
     # Prints a log message as '[time] severity: message' if Chef::Log::Formatter.show_time == true.
     # Otherwise, doesn't print the time.
     def call(severity, time, progname, msg)
+      if severity == 'FATAL' && !msg.is_a?(::Exception)
+        msg = RuntimeError.new(msg)
+      end
+
       if msg.is_a?(String) && msg.start_with?('===> ')
         sprintf "%s\n", msg2str(msg)
-      elsif msg.is_a?(String) && msg.start_with?('- ')
+      elsif msg.is_a?(Exception) || (msg.is_a?(String) && msg.start_with?('- '))
         sprintf "   %s\n", msg2str(msg)
       else
         sprintf "     %s\n", msg2str(msg)
@@ -22,7 +26,7 @@ module Infraset
       when ::String
         msg
       when ::Exception
-        "\e[#{31}m#{msg.message} (#{msg.class})\e[0m"
+        "\e[#{31}m! #{msg.message} (#{msg.class})\e[0m"
       else
         msg.to_s
       end

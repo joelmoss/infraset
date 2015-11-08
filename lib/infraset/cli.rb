@@ -20,6 +20,11 @@ module Infraset
       long: '--resource-path PATH',
       description: 'The relative path where the resources reside'
 
+    option :state_file,
+      short: '-s PATH',
+      long: '--state-file FILE',
+      description: 'The relative path to the state file'
+
     option :log_level,
       short: '-l LEVEL',
       long: '--log-level LEVEL',
@@ -31,9 +36,33 @@ module Infraset
       setup
 
       run_context = RunContext.new
-
+      fetch_state run_context
       compile_resources run_context
       execute_resources run_context
+
+      exit 0
+    rescue => e
+      logger.fatal e
+      exit 1
+    end
+
+    # Fetches the current state.
+    def fetch_state(run_context)
+      logger.info "===> Determining state from #{config[:state_file]}"
+
+      state = {}
+      state_file = File.expand_path(config[:state_file])
+      if File.exist?(state_file)
+        state = IO.read(state_file)
+      else
+        logger.info "State file does not exist at #{state_file}. Creating..."
+        state_dir = File.dirname(state_file)
+        if Dir.exist? state_dir
+          File.open(state_file, "w+") { |f| f.write JSON.generate(state) }
+        else
+          raise "Cannot create state file in #{state_dir}. Does that directory exist?"
+        end
+      end
     end
 
     # Collect the resources at the `resource_path` by scanning for Ruby files at the top level, then

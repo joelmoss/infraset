@@ -2,3 +2,5 @@ distro
 
 .DS_store
 .direnv
+
+infraset.json
