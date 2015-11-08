@@ -1,5 +1,6 @@
 module Infraset
   class ResourceCollection < Array
+    include Utilities
 
     def <<(item)
       if item.is_a?(ResourceFile)
@@ -13,6 +14,13 @@ module Infraset
 
     def add_from_resource_file(resource_file)
       resource_file.each { |resource| self << resource }
+    end
+
+    def execute
+      each do |res|
+        logger.info "- #{res}"
+        res.execute
+      end
     end
 
   end

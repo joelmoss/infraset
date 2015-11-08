@@ -1,7 +1,7 @@
 require 'forwardable'
+require 'cleanroom'
 
 require 'infraset/utilities'
-require 'cleanroom'
 
 module Infraset
   class Resource
@@ -38,8 +38,12 @@ module Infraset
         define_method name do |value=NULL|
           if value.equal?(NULL) # reader
             default = options[:default]
-            if !self.class.attributes[name][:value] && default && default.is_a?(Symbol)
-              return respond_to?(default, true) ? send(default) : default
+            if !self.class.attributes[name][:value] && default
+              if default.is_a?(Symbol)
+                return respond_to?(default, true) ? send(default) : default
+              else
+                return default
+              end
             end
           else # writer
             validate_attribute_type name, self.class.attributes[name], value
@@ -63,6 +67,10 @@ module Infraset
 
     def to_s
       "#{namespace}:#{type}[#{name}]"
+    end
+
+    def execute
+      raise NotImplementedError, "#execute is not implemented on #{namespace}:#{type}"
     end
 
 

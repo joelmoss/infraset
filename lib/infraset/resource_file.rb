@@ -22,8 +22,8 @@ module Infraset
     def evaluate_contents
       evaluate_file path
 
-      logger.debug "Found #{@resource_count} resource(s) in #{path}"
-      resources.each { |res| logger.debug " - #{res}" }
+      logger.info "Found #{@resource_count} resource(s) in #{path}"
+      resources.each { |res| logger.info "- #{res}" }
     end
 
     def resource(namespace, type, name, &block)
