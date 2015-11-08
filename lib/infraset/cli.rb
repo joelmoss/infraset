@@ -56,7 +56,11 @@ module Infraset
       state_file = File.expand_path(config[:state_file])
 
       if File.exist?(state_file)
-        run_context.state = JSON.parse(IO.read(state_file))
+        begin
+          run_context.state = JSON.parse(IO.read(state_file))
+        rescue => e
+          raise e.class, "Unable to read/parse state file\n     #{e}"
+        end
       else
         logger.info "State file does not exist at #{state_file}. Creating..."
         state_dir = File.dirname(state_file)
