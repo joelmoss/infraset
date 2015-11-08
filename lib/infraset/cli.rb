@@ -15,6 +15,8 @@ module Infraset
     include Mixlib::CLI
     include Utilities
 
+    attr_accessor :run_context
+
     option :resource_path,
       short: '-r PATH',
       long: '--resource-path PATH',
@@ -35,10 +37,9 @@ module Infraset
     def run
       setup
 
-      run_context = RunContext.new
-      fetch_state run_context
-      compile_resources run_context
-      execute_resources run_context
+      fetch_state
+      compile_resources
+      execute_resources
 
       exit 0
     rescue => e
@@ -46,19 +47,21 @@ module Infraset
       exit 1
     end
 
-    # Fetches the current state.
-    def fetch_state(run_context)
+    # Fetches the current state if available in the state file. Otherwise, a new empty state file is
+    # created.
+    def fetch_state
       logger.info "===> Determining state from #{config[:state_file]}"
 
-      state = {}
+      run_context.state = {}
       state_file = File.expand_path(config[:state_file])
+
       if File.exist?(state_file)
-        state = IO.read(state_file)
+        run_context.state = JSON.parse(IO.read(state_file))
       else
         logger.info "State file does not exist at #{state_file}. Creating..."
         state_dir = File.dirname(state_file)
         if Dir.exist? state_dir
-          File.open(state_file, "w+") { |f| f.write JSON.generate(state) }
+          File.open(state_file, "w+") { |f| f.write JSON.generate(run_context.state) }
         else
           raise "Cannot create state file in #{state_dir}. Does that directory exist?"
         end
@@ -67,7 +70,7 @@ module Infraset
 
     # Collect the resources at the `resource_path` by scanning for Ruby files at the top level, then
     # adding them to the `run_context`.
-    def compile_resources(run_context)
+    def compile_resources
       logger.info "===> Compiling resources from #{config[:resource_path]}"
 
       run_context.resource_collection = ResourceCollection.new
@@ -76,7 +79,7 @@ module Infraset
       end
     end
 
-    def execute_resources(run_context)
+    def execute_resources
       logger.info "===> Executing #{run_context.resource_collection.count} resources"
       run_context.resource_collection.execute
     end
@@ -89,6 +92,8 @@ module Infraset
         parse_options
         parse_config
         setup_logging
+
+        @run_context = RunContext.new
       end
 
       def setup_logging
