@@ -8,7 +8,7 @@ module Infraset
         # credentials = Aws::SharedCredentials.new(profile_name: ‘my_profile_name’)
 
         attribute :vpc, String
-        attribute :vpc_region, String, default: ENV['AWS_REGION']
+        attribute :vpc_region, String, default: ENV['AWS_DEFAULT_REGION'] || 'us-east-1'
         attribute :comment, String, default: 'Managed by Infraset'
 
 
