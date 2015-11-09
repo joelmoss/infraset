@@ -12,7 +12,8 @@ module Infraset
     NULL = Object.new.freeze
     ATTRIBUTE_TYPES = [ String, Array ]
 
-    def_delegators :@loader, :namespace, :type
+    attr_accessor :attributes
+    def_delegators :@loader, :namespace, :provider, :type, :path
 
     def initialize(loader)
       @loader = loader
@@ -31,14 +32,13 @@ module Infraset
 
         attributes[name] = {
           type: type,
-          options: options,
-          value: nil
+          options: options
         }
 
         define_method name do |value=NULL|
           if value.equal?(NULL) # reader
             default = options[:default]
-            if !self.class.attributes[name][:value] && default
+            if !attributes[name] && default
               if default.is_a?(Symbol)
                 return respond_to?(default, true) ? send(default) : default
               else
@@ -46,11 +46,11 @@ module Infraset
               end
             end
           else # writer
-            validate_attribute_type name, self.class.attributes[name], value
-            self.class.attributes[name][:value] = value
+            validate_attribute_type name, attributes[name]
+            attributes[name] = value
           end
 
-          self.class.attributes[name][:value]
+          attributes[name]
         end
 
         expose name
@@ -66,11 +66,19 @@ module Infraset
     attribute :name, String, default: :default_name
 
     def to_s
-      "#{namespace}:#{type}[#{name}]"
+      uid
     end
 
     def execute
-      raise NotImplementedError, "#execute is not implemented on #{namespace}:#{type}"
+      raise NotImplementedError, "#execute is not implemented on #{provider}:#{type}"
+    end
+
+    def uid
+      "#{provider}:#{type}[#{name}]"
+    end
+
+    def attribute_definitions
+      self.class.attributes
     end
 
 
@@ -82,9 +90,10 @@ module Infraset
         @loader.name
       end
 
-      def validate_attribute_type(attr_name, attr_object, value)
-        unless value.is_a?(attr_object[:type])
-          raise TypeError, "value of attribute '#{attr_name}' is not a #{attr_object[:type]}"
+      def validate_attribute_type(name, value)
+        attr_object = self.class.attributes[name]
+        if value && !value.is_a?(attr_object[:type])
+          raise TypeError, "value of attribute '#{name}' is not a #{attr_object[:type]}"
         end
       end
   end

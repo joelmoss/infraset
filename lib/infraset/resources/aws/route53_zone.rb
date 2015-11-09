@@ -19,6 +19,10 @@ module Infraset
           logger.fatal e
         end
 
+        def uid
+          vpc ? "#{provider}:#{type}[#{name}/#{vpc}]" : super
+        end
+
 
         private
 

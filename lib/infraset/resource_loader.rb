@@ -5,18 +5,20 @@ module Infraset
     include Infraset::Utilities
 
     attr_reader :namespace
+    attr_reader :provider
     attr_reader :type
     attr_reader :name
     attr_reader :path
 
-    def initialize(namespace, type, name, path)
-      @namespace = namespace
+    def initialize(provider, type, name, path)
+      @provider = provider
       @type = type
       @name = name
       @path = path
+      @namespace = path.match(/#{config[:resource_path]}\/(.+)\.rb/i)[1]
 
       # Find the resource class
-      resource_class_path = File.join('infraset', 'resources', @namespace.to_s, "#{@type}")
+      resource_class_path = File.join('infraset', 'resources', @provider.to_s, "#{@type}")
       if File.exist?("lib/#{resource_class_path}.rb")
         require resource_class_path
         @resource_class_name = resource_class_path.camelize.constantize

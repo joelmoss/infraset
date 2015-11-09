@@ -27,6 +27,12 @@ module Infraset
       long: '--state-file FILE',
       description: 'The relative path to the state file'
 
+    option :execute,
+      long: '--[no-]execute',
+      boolean: true,
+      default: true,
+      description: 'Execute the plan'
+
     option :log_level,
       short: '-l LEVEL',
       long: '--log-level LEVEL',
@@ -39,7 +45,7 @@ module Infraset
 
       fetch_state
       compile_resources
-      execute_resources
+      execute_resources if config.execute
 
       exit 0
     rescue => e
@@ -50,10 +56,10 @@ module Infraset
     # Fetches the current state if available in the state file. Otherwise, a new empty state file is
     # created.
     def fetch_state
-      logger.info "===> Determining state from #{config[:state_file]}"
+      logger.info "===> Determining state from #{config.state_file}"
 
       run_context.state = {}
-      state_file = File.expand_path(config[:state_file])
+      state_file = File.expand_path(config.state_file)
 
       if File.exist?(state_file)
         begin
@@ -73,19 +79,22 @@ module Infraset
     end
 
     # Collect the resources at the `resource_path` by scanning for Ruby files at the top level, then
-    # adding them to the `run_context`.
+    # compile and add them to the `resource_collection` of the `run_context`.
     def compile_resources
-      logger.info "===> Compiling resources from #{config[:resource_path]}"
+      logger.info "===> Collecting resources from #{config.resource_path}"
 
       run_context.resource_collection = ResourceCollection.new
-      Dir.glob(File.join(config[:resource_path], "*.rb")).each do |file|
+      Dir.glob(File.join(config.resource_path, "*.rb")).each do |file|
         run_context.resource_collection << ResourceFile.new(file)
       end
+
+      logger.info "===> Compiling #{run_context.resource_collection.count} resource(s)"
+      run_context.compile
     end
 
     def execute_resources
-      logger.info "===> Executing #{run_context.resource_collection.count} resources"
-      run_context.resource_collection.execute
+      logger.info "===> Executing #{run_context.resource_collection.count} resource(s)"
+      run_context.execute!
     end
 
 
@@ -102,7 +111,7 @@ module Infraset
 
       def setup_logging
         logger.formatter = Infraset::LogFormatter.new
-        logger.level = config[:log_level]
+        logger.level = config.log_level
       end
 
       def parse_config

@@ -22,12 +22,12 @@ module Infraset
     def evaluate_contents
       evaluate_file path
 
-      logger.info "Found #{@resource_count} resource(s) in #{path}"
-      resources.each { |res| logger.info "- #{res}" }
+      logger.debug "Found #{@resource_count} resource(s) in #{path}"
+      resources.each { |res| logger.debug "- #{res}" }
     end
 
-    def resource(namespace, type, name, &block)
-      loader = ResourceLoader.new(namespace, type, name, path)
+    def resource(provider, type, name, &block)
+      loader = ResourceLoader.new(provider, type, name, path)
       loader.evaluate &block
       @resource_count += 1
       resources << loader.resource
