@@ -1,5 +1,3 @@
-require 'infraset/utilities'
-
 module Infraset
   class ResourceLoader
     include Infraset::Utilities

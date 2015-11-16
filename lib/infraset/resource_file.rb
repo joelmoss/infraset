@@ -1,6 +1,5 @@
 require 'cleanroom'
 
-require 'infraset/utilities'
 require 'infraset/resource_loader'
 
 module Infraset
@@ -22,8 +21,8 @@ module Infraset
     def evaluate_contents
       evaluate_file path
 
-      logger.debug "Found #{@resource_count} resource(s) in #{path}"
-      resources.each { |res| logger.debug "- #{res}" }
+      logger.debug "Found #{@resource_count} resource(s) in #{path}:"
+      resources.each { |res| logger.debug "  #{res}" }
     end
 
     def resource(provider, type, name, &block)

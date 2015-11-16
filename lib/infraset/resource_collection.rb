@@ -1,7 +1,12 @@
+require 'hashdiff'
+
 module Infraset
   class ResourceCollection < Array
     include Utilities
 
+    # Append a resource to the collection. This behaves just like `Array#<<`, but only accepts a
+    # `Resource` or `ResourceFile`, otherwise an `ArgumentError` is raised. If a `ResourceFile` is
+    # given, then each `Resource` found in that file will be appended to the collection instead.
     def <<(item)
       if item.is_a?(ResourceFile)
         add_from_resource_file item
@@ -12,38 +17,76 @@ module Infraset
       end
     end
 
-    def add_from_resource_file(resource_file)
-      resource_file.each { |resource| self << resource }
+    def current_state=(state)
+      each do |resource|
+        resource.current_state = state[resource.uid]
+      end unless state.empty?
     end
 
-    def compile
+    # Compile the resources in this collection and generate the plan. This includes validation of
+    # the resources, including a check that all UID's are unique.
+    def compile!
       validate_uids
-      generate_state
+      generate_plan
     end
 
     def execute!
-      each do |res|
-        logger.info "- #{res}"
-        res.execute
+      each do |resource|
+        logger.info "- #{resource}"
+        resource.execute!
+        yield resource if block_given?
       end
     end
 
 
     private
 
+      def add_from_resource_file(resource_file)
+        resource_file.each { |resource| self << resource }
+      end
+
       # Check that each resource UID is unique, otherwise we raise an exception.
       def validate_uids
-        each do |res|
-          matching = find_all { |r| r.uid == res.uid }
+        each do |resource|
+          matching = find_all { |r| r.uid == resource.uid }
           if matching.count > 1
-            raise "#{res} is not unique, because another resource has been found with the same UID" +
-                  " (#{res.uid}).\n     " + matching.map { |r| "#{r} in #{r.path}" }.join("\n     ")
+            raise "#{resource} is not unique, because another resource has been found with the same UID" +
+                  " (#{resource.uid}).\n     " + matching.map { |r| "#{r} in #{r.path}" }.join("\n     ")
           end
         end
       end
 
-      def generate_state
+      # Takes the current state and applies it to each resource
+      def apply_current_state(state)
+        each do |resource|
+          resource.state[:id] = state['resources'][resource.uid]['id']
+          resource.state[:attributes] = state['resources'][resource.uid]['attributes']
+        end
+      end
 
+      # Generate the planned state by comparing the resources against the current state.
+      def generate_plan
+        each do |r|
+          if existing_resource = r.current_state[r.uid]
+            # Resource already exists
+            p existing_resource.current_state, r.planned_state
+            diff = HashDiff.diff(existing_resource.current_state['attributes'], r.planned_state[:attributes])
+            p diff
+
+            unless diff.empty?
+              r.should_update!
+              logger.info "~ #{r}"
+              logger.info diff
+            end
+          else
+            # Resource does not yet exist
+            r.should_create!
+            logger.info "+ #{r}"
+            r.planned_state[:attributes].each do |name,value|
+              logger.info "#{name} => #{value}"
+            end
+          end
+        end
       end
 
   end

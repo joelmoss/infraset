@@ -1,8 +1,23 @@
 module Infraset
   class RunContext
+    include Infraset::Utilities
 
     attr_accessor :resource_collection
-    attr_accessor :state
+    attr_accessor :planned_state
+    attr_reader   :current_state
+
+
+    def initialize
+      @resource_collection = ResourceCollection.new
+      @current_state = {resources:{}}.with_indifferent_access
+    end
+
+    # Set the current state  on the instance variables of the same name, and also apply each
+    # resource's state on it's corresponding resource object.
+    def current_state=(state)
+      @current_state = state.with_indifferent_access
+      resource_collection.current_state = current_state[:resources]
+    end
 
     # Compile the resources found in the `resource_collection` by comparing with the current state.
     # This will determine what resources should be added, removed and/or modified.
@@ -32,12 +47,27 @@ module Infraset
     #   end
     #
     # The above will have a UID of `primary mydomain.com`.
-    def compile
-      resource_collection.compile
+    def compile!
+      resource_collection.compile!
     end
 
     def execute!
-      resource_collection.execute!
+      if config.execute
+        resource_collection.execute! { |resource| save_state resource }
+      else
+        logger.warn "Execution of #{resource_collection.count} resource(s) will " +
+                    "not occur due to `--no-execute` having been given."
+      end
+    end
+
+    def save_state(resource)
+      logger.debug "Saving state for #{resource}"
+      current_state[:resources][resource.uid] = resource.current_state
+    end
+
+    def write_state!
+      state_file = File.expand_path(config.state_file)
+      File.write state_file, JSON.generate(current_state)
     end
 
   end

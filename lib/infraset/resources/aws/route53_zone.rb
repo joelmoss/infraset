@@ -13,14 +13,30 @@ module Infraset
 
 
         def execute
-          result = client.create_hosted_zone options
-          logger.debug result
-        rescue ::Aws::Route53::Errors::ServiceError => e
-          logger.fatal e
+          if @to_be_created
+            client.create_hosted_zone options
+          elsif @to_be_updated
+            client.update_hosted_zone_comment id: state[:id], comment: comment
+          elsif @to_be_deleted
+            client.delete_hosted_zone id: state[:id]
+          end
         end
 
         def uid
           vpc ? "#{provider}:#{type}[#{name}/#{vpc}]" : super
+        end
+
+        def state
+          unless @state['id']
+            @state[:attributes] = {
+              domain: name,
+              comment: comment,
+              vpc_id: vpc,
+              vpc_region: vpc_region
+            }
+          end
+
+          @state
         end
 
 
@@ -40,8 +56,17 @@ module Infraset
               vpc_region: vpc_region
             } if vpc
 
-            logger.debug opts
             opts
+          end
+
+          def save_state(response)
+            @current_state[:id] = response.hosted_zone.id.sub('/hostedzone/', '')
+            @current_state[:attributes] = {
+              domain: response.hosted_zone.name.chomp('.'),
+              comment: response.hosted_zone.config.comment,
+              vpc_id: response.vpc.vpc_id,
+              vpc_region: response.vpc.vpc_region
+            }
           end
 
           def client

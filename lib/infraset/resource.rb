@@ -1,8 +1,6 @@
 require 'forwardable'
 require 'cleanroom'
 
-require 'infraset/utilities'
-
 module Infraset
   class Resource
     extend Forwardable
@@ -12,14 +10,8 @@ module Infraset
     NULL = Object.new.freeze
     ATTRIBUTE_TYPES = [ String, Array ]
 
-    attr_accessor :attributes
+    attr_accessor :attributes, :current_state, :planned_state
     def_delegators :@loader, :namespace, :provider, :type, :path
-
-    def initialize(loader)
-      @loader = loader
-      @attributes = {}
-    end
-
 
     class << self
 
@@ -38,19 +30,23 @@ module Infraset
         define_method name do |value=NULL|
           if value.equal?(NULL) # reader
             default = options[:default]
-            if !attributes[name] && default
-              if default.is_a?(Symbol)
-                return respond_to?(default, true) ? send(default) : default
+            if !planned_state[:attributes][name]
+              if default
+                if default.is_a?(Symbol)
+                  return respond_to?(default, true) ? send(default) : default
+                else
+                  return default
+                end
               else
-                return default
+                return nil
               end
             end
           else # writer
-            validate_attribute_type name, attributes[name]
-            attributes[name] = value
+            validate_attribute_type name, planned_state[:attributes][name]
+            planned_state[:attributes][name] = value
           end
 
-          attributes[name]
+          planned_state[:attributes][name]
         end
 
         expose name
@@ -65,20 +61,53 @@ module Infraset
     # The name of the resource
     attribute :name, String, default: :default_name
 
+
+    def initialize(loader)
+      @loader = loader
+      @current_state = {id: nil, attributes: {}}.with_indifferent_access
+      @planned_state = {id: nil, attributes: {}}.with_indifferent_access
+      @to_be_created = false
+      @to_be_updated = false
+      @to_be_deleted = false
+    end
+
     def to_s
       uid
+    end
+
+    def execute!
+      save_state execute
     end
 
     def execute
       raise NotImplementedError, "#execute is not implemented on #{provider}:#{type}"
     end
 
+    def save_state
+      raise NotImplementedError, "#save_state is not implemented on #{provider}:#{type}"
+    end
+
     def uid
       "#{provider}:#{type}[#{name}]"
     end
 
-    def attribute_definitions
+    def attributes
       self.class.attributes
+    end
+
+    # Mark this resource to be created.
+    def should_create!
+      @to_be_created = true
+    end
+
+    # Mark this resource to be updated.
+    def should_update!
+      @to_be_updated = true
+    end
+
+    # Mark this resource to be deleted.
+    def should_delete!
+      @to_be_deleted = true
     end
 
 
@@ -96,5 +125,6 @@ module Infraset
           raise TypeError, "value of attribute '#{name}' is not a #{attr_object[:type]}"
         end
       end
+
   end
 end

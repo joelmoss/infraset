@@ -1,4 +1,3 @@
-require 'infraset/utilities'
 require 'infraset/dsl/resource'
 
 module Infraset
