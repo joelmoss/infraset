@@ -83,10 +83,13 @@ module Infraset
             # Resource does not yet exist
             r.should_create!
             logger.added r do
-              attrs = r.planned_state[:attributes]
-              length = Hash[attrs.sort_by { |key, val| key.length }].keys.last.length
-              attrs.each do |key,value|
+              planned_attrs = r.planned_state[:attributes]
+              length = Hash[r.attributes.sort_by { |key, val| key.length }].keys.last.length
+              r.attributes.each do |key,params|
+                next if key == :name
+
                 name = "#{key}:".rjust(length+1)
+                value = planned_attrs[key] || r.send(key)
                 logger.info "#{name} #{value}"
               end
             end

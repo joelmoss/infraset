@@ -7,6 +7,7 @@ module Infraset
       class Route53Zone < Infraset::Resource
         # credentials = Aws::SharedCredentials.new(profile_name: ‘my_profile_name’)
 
+        attribute :domain, String, default: :name
         attribute :vpc, String
         attribute :vpc_region, String, default: ENV['AWS_DEFAULT_REGION'] || 'us-east-1'
         attribute :comment, String, default: 'Managed by Infraset'

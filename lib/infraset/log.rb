@@ -17,17 +17,17 @@ module Infraset
       end
 
       def added(resource, &block)
-        $stdout.puts Paint[msg2str("\n   + #{resource}"), :green]
+        $stdout.puts Paint[msg2str("   + #{resource}"), :green]
         yield
       end
 
       def modified(resource, &block)
-        $stdout.puts Paint[msg2str("\n   ~ #{resource}"), :yellow]
+        $stdout.puts Paint[msg2str("   ~ #{resource}"), :yellow]
         yield
       end
 
       def removed(resource, &block)
-        $stdout.puts Paint[msg2str("\n   - #{resource}"), :red]
+        $stdout.puts Paint[msg2str("   - #{resource}"), :red]
         yield
       end
 
