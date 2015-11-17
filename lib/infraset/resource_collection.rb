@@ -67,23 +67,28 @@ module Infraset
       # Generate the planned state by comparing the resources against the current state.
       def generate_plan
         each do |r|
-          if existing_resource = r.current_state[r.uid]
+          if r.current_state[:id]
             # Resource already exists
-            p existing_resource.current_state, r.planned_state
-            diff = HashDiff.diff(existing_resource.current_state['attributes'], r.planned_state[:attributes])
+            p r.current_state, r.planned_state
+            diff = HashDiff.diff(r.current_state['attributes'], r.planned_state[:attributes])
             p diff
 
             unless diff.empty?
               r.should_update!
-              logger.info "~ #{r}"
-              logger.info diff
+              logger.modified r do
+                logger.info diff
+              end
             end
           else
             # Resource does not yet exist
             r.should_create!
-            logger.info "+ #{r}"
-            r.planned_state[:attributes].each do |name,value|
-              logger.info "#{name} => #{value}"
+            logger.added r do
+              attrs = r.planned_state[:attributes]
+              length = Hash[attrs.sort_by { |key, val| key.length }].keys.last.length
+              attrs.each do |key,value|
+                name = "#{key}:".rjust(length+1)
+                logger.info "#{name} #{value}"
+              end
             end
           end
         end

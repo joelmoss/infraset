@@ -3,7 +3,9 @@ resource :aws, :route53_zone, 'joelmoss.com' do
   comment 'new comment'
 end
 
-# resource :aws, :route53_zone, 'joelmoss.com'
+resource :aws, :route53_zone, 'joelmoss.com' do
+  comment 'blah'
+end
 # resource :aws, :route53_zone, 'joelmoss2.com'
 
 # resource :aws, :animal, 'milo' do

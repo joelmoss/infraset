@@ -52,12 +52,7 @@ module Infraset
     end
 
     def execute!
-      if config.execute
-        resource_collection.execute! { |resource| save_state resource }
-      else
-        logger.warn "Execution of #{resource_collection.count} resource(s) will " +
-                    "not occur due to `--no-execute` having been given."
-      end
+      resource_collection.execute! { |resource| save_state resource }
     end
 
     def save_state(resource)

@@ -90,8 +90,7 @@ module Infraset
     # Loop through each resource in the current state and refresh it. This only refreshes the state
     # of existing resources by fetching the actual resource data from the provider.
     def refresh_state
-      logger.info "Refreshing current state..." do
-        logger.warn 'TODO!'
+      logger.info "Refreshing current state... (TODO)" do
       end
     end
 
@@ -107,33 +106,33 @@ module Infraset
     def execute_resources
       logger.info "Executing #{run_context.resource_collection.count} resource(s)" do
         run_context.execute!
-      end
+      end if config.execute
     end
 
     # Write the state back to the state file from the run context.
     def write_state
       logger.info "Writing state to #{config.state_file}" do
         run_context.write_state!
-      end
+      end if config.execute
     end
 
 
     private
 
       def setup
-        puts "\n" + Paint[banner, :green] if $stdout.tty?
+        puts banner if $stdout.tty?
         parse_options
         config.merge! config
         @run_context = RunContext.new
       end
 
       def banner
-%Q{   _        __                    _
+%Q{\n   _        __                    _
   (_)_ __  / _|_ __ __ _ ___  ___| |_
   | | '_ \\| |_| '__/ _` / __|/ _ \\ __|
   | | | | |  _| | | (_| \\__ \\  __/ |_
   |_|_| |_|_| |_|  \\__,_|___/\___|\\__|   #{user_agent}
-}
+\n}
       end
 
   end
