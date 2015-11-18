@@ -7,9 +7,9 @@ module Infraset
     class << self
       INDENT = " " * 5
 
-      def info(msg)
+      def info(msg=nil)
         if block_given?
-          $stdout.puts Paint[msg2str("===> #{msg}"), :bright]
+          $stdout.puts msg.nil? ? "\n" : Paint[msg2str("===> #{msg}"), :bright]
           yield
         else
           $stdout.puts INDENT + Paint[msg2str(msg)]

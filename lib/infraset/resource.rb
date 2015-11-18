@@ -10,8 +10,9 @@ module Infraset
     NULL = Object.new.freeze
     ATTRIBUTE_TYPES = [ String, Array ]
 
-    attr_accessor :attributes, :current_state, :planned_state
-    def_delegators :@loader, :namespace, :provider, :type, :path
+    attr_accessor :attributes
+    attr_writer :planned_state
+    def_delegators :@loader, :namespace, :provider, :type, :path, :name
 
     class << self
 
@@ -29,24 +30,11 @@ module Infraset
 
         define_method name do |value=NULL|
           if value.equal?(NULL) # reader
-            default = options[:default]
-            if !planned_state[:attributes][name]
-              if default
-                if default.is_a?(Symbol)
-                  return respond_to?(default, true) ? send(default) : default
-                else
-                  return default
-                end
-              else
-                return nil
-              end
-            end
+            planned_state[:attributes][name] ||= default_for(name)
           else # writer
             validate_attribute_type name, planned_state[:attributes][name]
             planned_state[:attributes][name] = value
           end
-
-          planned_state[:attributes][name]
         end
 
         expose name
@@ -58,17 +46,27 @@ module Infraset
 
     end
 
-    # The name of the resource
-    attribute :name, String, default: :default_name
-
 
     def initialize(loader)
       @loader = loader
-      @current_state = {id: nil, attributes: {}}.with_indifferent_access
-      @planned_state = {id: nil, attributes: {}}.with_indifferent_access
       @to_be_created = false
       @to_be_updated = false
       @to_be_deleted = false
+    end
+
+    def planned_state
+      @planned_state ||= {id: nil, attributes: defaults}.with_indifferent_access
+    end
+
+    def current_state
+      @current_state ||= {id: nil, attributes: defaults}.with_indifferent_access
+    end
+
+    def current_state=(state)
+      if state
+        @planned_state[:id] = state[:id]
+        @current_state = state
+      end
     end
 
     def to_s
@@ -113,10 +111,27 @@ module Infraset
 
     private
 
-      # The default name is taken from the second argument of `resource` if the name attribute is
-      # not set.
-      def default_name
-        @loader.name
+      def defaults
+        @defaults ||= begin
+          defs = {}
+          attributes.each do |name, opts|
+            next if name == :name
+            defs[name] = default_for(name)
+          end
+          defs
+        end
+      end
+
+      def default_for(attr_name)
+        if default = attributes[attr_name][:options][:default]
+          if default.is_a?(Symbol)
+            respond_to?(default, true) ? send(default) : default
+          else
+            default
+          end
+        else
+          nil
+        end
       end
 
       def validate_attribute_type(name, value)

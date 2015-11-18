@@ -65,8 +65,8 @@ module Infraset
             @current_state[:attributes] = {
               domain: response.hosted_zone.name.chomp('.'),
               comment: response.hosted_zone.config.comment,
-              vpc_id: response.vpc.vpc_id,
-              vpc_region: response.vpc.vpc_region
+              vpc: (response.vpc && response.vpc.vpc_id) || nil,
+              vpc_region: (response.vpc && response.vpc.vpc_region) || nil
             }
           end
 

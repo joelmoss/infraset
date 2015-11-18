@@ -56,7 +56,6 @@ module Infraset
     # add them to the `resource_collection` of the `run_context`.
     def collect_resources
       logger.info "Collecting resources from #{config.resource_path}" do
-
         Dir.glob(File.join(config.resource_path, "*.rb")).each do |file|
           run_context.resource_collection << ResourceFile.new(file)
         end

@@ -66,34 +66,46 @@ module Infraset
 
       # Generate the planned state by comparing the resources against the current state.
       def generate_plan
-        each do |r|
-          if r.current_state[:id]
-            # Resource already exists
-            p r.current_state, r.planned_state
-            diff = HashDiff.diff(r.current_state['attributes'], r.planned_state[:attributes])
-            p diff
+        plan_counts = {
+          created: 0,
+          modified: 0,
+          removed: 0
+        }
 
-            unless diff.empty?
-              r.should_update!
-              logger.modified r do
-                logger.info diff
+        logger.info do
+          each do |r|
+            if r.current_state[:id]
+              # Resource already exists
+              diff = HashDiff.diff(r.current_state[:attributes], r.planned_state[:attributes])
+
+              unless diff.empty?
+                plan_counts[:modified] =+ 1
+                r.should_update!
+                logger.modified r do
+                  length = diff.sort_by { |type,name,old,new| name.length }.last[1].length
+                  diff.each do |type,name,old,new|
+                    name = "#{name}:".rjust(length+1)
+                    logger.info "#{name} #{old.inspect} => #{new.inspect}"
+                  end
+                end
               end
-            end
-          else
-            # Resource does not yet exist
-            r.should_create!
-            logger.added r do
-              planned_attrs = r.planned_state[:attributes]
-              length = Hash[r.attributes.sort_by { |key, val| key.length }].keys.last.length
-              r.attributes.each do |key,params|
-                next if key == :name
-
-                name = "#{key}:".rjust(length+1)
-                value = planned_attrs[key] || r.send(key)
-                logger.info "#{name} #{value}"
+            else
+              # Resource does not yet exist
+              plan_counts[:created] =+ 1
+              r.should_create!
+              logger.added r do
+                planned_attrs = r.planned_state[:attributes]
+                length = Hash[r.attributes.sort_by { |key, val| key.length }].keys.last.length
+                r.attributes.each do |key,params|
+                  name = "#{key}:".rjust(length+1)
+                  value = planned_attrs[key] || r.send(key)
+                  logger.info "#{name} #{value}"
+                end
               end
             end
           end
+
+          logger.info "\n   Plan: #{plan_counts[:created]} to add, #{plan_counts[:modified]} to change, #{plan_counts[:removed]} to destroy."
         end
       end
 
