@@ -54,6 +54,10 @@ module Infraset
       @to_be_deleted = false
     end
 
+    def exist?
+      !current_state[:id].nil?
+    end
+
     def planned_state
       @planned_state ||= {id: nil, attributes: defaults}.with_indifferent_access
     end
@@ -67,6 +71,18 @@ module Infraset
         @planned_state[:id] = state[:id]
         @current_state = state
       end
+    end
+
+    def current_attributes
+      current_state[:attributes]
+    end
+
+    def planned_attributes
+      planned_state[:attributes]
+    end
+
+    def diff
+      @diff ||= HashDiff.diff(current_attributes, planned_attributes)
     end
 
     def to_s

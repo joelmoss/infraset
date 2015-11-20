@@ -26,9 +26,9 @@ module Infraset
         yield
       end
 
-      def removed(resource, &block)
+      def removed(resource)
         $stdout.puts Paint[msg2str("   - #{resource}"), :red]
-        yield
+        yield if block_given?
       end
 
       def debug(msg)

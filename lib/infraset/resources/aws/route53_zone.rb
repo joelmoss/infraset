@@ -28,7 +28,7 @@ module Infraset
         end
 
         def state
-          unless @state['id']
+          unless @state[:id]
             @state[:attributes] = {
               domain: name,
               comment: comment,

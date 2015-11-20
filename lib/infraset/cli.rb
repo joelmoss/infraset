@@ -37,6 +37,16 @@ module Infraset
     # The main execution method that is called when the CLI is run. Exits with a non-zero exit code
     # if unsuccessful. If the `execution` option is false, then any resource plan will not be
     # executed.
+    #
+    # 1. We scan the `resource_path` for Ruby files and collect the resources found within them, and
+    #    add each resource to the `run_context.resource_collection`.
+    # 2. Read the current state from the `state_file` if it exists.
+    # 3. Refresh the current state found in step 2, by querying the provider of each resource and
+    #    updating the current state.
+    # 4. Compile the resources and build the plan of the what resources will be added, modified
+    #    and/or removed. To do this, we generate the planned state and compare it against the
+    #    current state.
+    # 5. Execute the resource plan.
     def run
       setup
 
