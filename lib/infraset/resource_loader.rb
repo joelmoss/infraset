@@ -8,6 +8,7 @@ module Infraset
     attr_reader :name
     attr_reader :path
 
+
     def initialize(provider, type, name, path)
       @provider = provider
       @type = type

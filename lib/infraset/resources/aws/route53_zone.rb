@@ -7,19 +7,25 @@ module Infraset
       class Route53Zone < Infraset::Resource
         # credentials = Aws::SharedCredentials.new(profile_name: ‘my_profile_name’)
 
-        attribute :domain, String, default: :name
-        attribute :vpc, String
-        attribute :vpc_region, String, default: ENV['AWS_DEFAULT_REGION'] || 'us-east-1'
-        attribute :comment, String, default: 'Managed by Infraset'
+        attribute :domain, String,
+                  default: :name,
+                  recreate_on_update: true
+        attribute :vpc, String,
+                  recreate_on_update: true
+        attribute :vpc_region, String,
+                  recreate_on_update: true,
+                  required_if: :vpc_given?
+        attribute :comment, String,
+                  default: 'Managed by Infraset'
 
 
         def execute
           if @to_be_created
-            client.create_hosted_zone options
+            create!
           elsif @to_be_updated
-            client.update_hosted_zone_comment id: state[:id], comment: comment
+            @to_be_recreated ? recreate! : update!
           elsif @to_be_deleted
-            client.delete_hosted_zone id: state[:id]
+            delete!
           end
         end
 
@@ -27,21 +33,28 @@ module Infraset
           vpc ? "#{provider}:#{type}[#{name}/#{vpc}]" : super
         end
 
-        def state
-          unless @state[:id]
-            @state[:attributes] = {
-              domain: name,
-              comment: comment,
-              vpc_id: vpc,
-              vpc_region: vpc_region
-            }
-          end
-
-          @state
-        end
-
 
         private
+
+          def vpc_given?
+            vpc
+          end
+
+          def create!
+            client.create_hosted_zone options
+          end
+
+          def recreate!
+            delete! && create!
+          end
+
+          def delete!
+            client.delete_hosted_zone id: current_state[:id]
+          end
+
+          def update!
+            client.update_hosted_zone_comment id: current_state[:id], comment: comment
+          end
 
           def options
             opts = {
@@ -60,14 +73,27 @@ module Infraset
             opts
           end
 
-          def save_state(response)
-            @current_state[:id] = response.hosted_zone.id.sub('/hostedzone/', '')
-            @current_state[:attributes] = {
-              domain: response.hosted_zone.name.chomp('.'),
-              comment: response.hosted_zone.config.comment,
-              vpc: (response.vpc && response.vpc.vpc_id) || nil,
-              vpc_region: (response.vpc && response.vpc.vpc_region) || nil
+          def save_state_after_creation(res)
+            current_state[:id] = res.hosted_zone.id.sub('/hostedzone/', '')
+            current_state[:attributes] = {
+              domain: res.hosted_zone.name.chomp('.'),
+              comment: res.hosted_zone.config.comment,
+              vpc: (res.respond_to?(:vpc) && res.vpc && res.vpc.vpc_id) || nil,
+              vpc_region: (res.respond_to?(:vpc) && res.vpc && res.vpc.vpc_region) || nil
             }
+          end
+
+          def save_state_after_recreation(res)
+            save_state_after_creation res
+          end
+
+          def save_state_after_update(res)
+            current_state[:attributes][:comment] = res.hosted_zone.config.comment
+          end
+
+          def save_state_after_deletion(res)
+            p res
+            p '?'
           end
 
           def client

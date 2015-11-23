@@ -41,7 +41,7 @@ module Infraset
       end
 
       def attributes
-        @attributes ||= from_superclass(:attributes, {}).dup
+        @attributes ||= from_superclass(:attributes, {}.with_indifferent_access).dup
       end
 
     end
@@ -50,6 +50,7 @@ module Infraset
     def initialize(loader)
       @loader = loader
       @to_be_created = false
+      @to_be_recreated = false
       @to_be_updated = false
       @to_be_deleted = false
     end
@@ -85,20 +86,45 @@ module Infraset
       @diff ||= HashDiff.diff(current_attributes, planned_attributes)
     end
 
+    def should_recreate_for?(attr_name)
+      recreate = attributes[attr_name][:options][:recreate_on_update]
+      recreate = recreate.nil? ? false : recreate
+    end
+
     def to_s
       uid
     end
 
     def execute!
-      save_state execute
+      if @to_be_created
+        save_state_after_creation execute
+      elsif @to_be_recreated
+        save_state_after_recreation execute
+      elsif @to_be_updated
+        save_state_after_update execute
+      elsif @to_be_deleted
+        save_state_after_deletion execute
+      end
     end
 
     def execute
       raise NotImplementedError, "#execute is not implemented on #{provider}:#{type}"
     end
 
-    def save_state
-      raise NotImplementedError, "#save_state is not implemented on #{provider}:#{type}"
+    def save_state_after_creation
+      raise NotImplementedError, "#save_state_after_creation is not implemented on #{provider}:#{type}"
+    end
+
+    def save_state_after_recreation
+      raise NotImplementedError, "#save_state_after_recreation is not implemented on #{provider}:#{type}"
+    end
+
+    def save_state_after_update
+      raise NotImplementedError, "#save_state_after_update is not implemented on #{provider}:#{type}"
+    end
+
+    def save_state_after_deletion
+      raise NotImplementedError, "#save_state_after_deletion is not implemented on #{provider}:#{type}"
     end
 
     def uid
@@ -114,6 +140,11 @@ module Infraset
       @to_be_created = true
     end
 
+    # Mark this resource to be created.
+    def should_recreate!
+      @to_be_recreated = true
+    end
+
     # Mark this resource to be updated.
     def should_update!
       @to_be_updated = true
@@ -122,6 +153,20 @@ module Infraset
     # Mark this resource to be deleted.
     def should_delete!
       @to_be_deleted = true
+    end
+
+    # Validate this resource. Right now this only validates any required attributes.
+    def validate!
+      attributes.each do |name, opts|
+        if opts[:options][:required] && planned_attributes[name].nil?
+          raise "#{self} '#{name}' attribute is required"
+        elsif opts[:options][:required_if]
+          req_if = opts[:options][:required_if]
+          if req_if.is_a?(Symbol) && (respond_to?(req_if, true) ? send(req_if) : req_if) && planned_attributes[name].nil?
+            raise "#{self} '#{name}' attribute is required"
+          end
+        end
+      end
     end
 
 

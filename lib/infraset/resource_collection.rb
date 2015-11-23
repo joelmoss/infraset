@@ -42,6 +42,12 @@ module Infraset
       end
     end
 
+    def validate!
+      each do |resource|
+        resource.validate!
+      end
+    end
+
 
     private
 

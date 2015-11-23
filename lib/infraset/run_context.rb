@@ -49,6 +49,7 @@ module Infraset
     # The above will have a UID of `primary mydomain.com`.
     def compile!
       resource_collection.validate_uids!
+      resource_collection.validate!
       generate_plan_for plan_summary
     end
 
@@ -86,7 +87,7 @@ module Infraset
                 logger.added r do
                   length = Hash[r.attributes.sort_by { |key, val| key.length }].keys.last.length
                   r.attributes.each do |key,params|
-                    name = "#{key}:".ljust(length+1)
+                    name = "#{key}:".ljust(length+2)
                     value = r.planned_attributes[key] || r.send(key)
                     logger.info "#{name} #{value.inspect}"
                   end
@@ -98,8 +99,16 @@ module Infraset
                 logger.modified r do
                   length = r.diff.sort_by { |type,name,old,new| name.length }.last[1].length
                   r.diff.each do |type,name,old,new|
-                    name = "#{name}:".ljust(length+1)
-                    logger.info "#{name} #{old.inspect} => #{new.inspect}"
+                    recreate_log = nil
+
+                    # Does modifying this attribute require that we recreate a new resource?
+                    if r.should_recreate_for?(name)
+                      r.should_recreate!
+                      recreate_log = Paint['  *Forces new resource!', :red]
+                    end
+
+                    name = "#{name}:".ljust(length+2)
+                    logger.info "#{name} #{old.inspect} => #{new.inspect}#{recreate_log}"
                   end
                 end
               end
