@@ -10,19 +10,10 @@ module Infraset
     attr_reader :path
     attr_reader :resources
 
+
     def initialize(file_path)
-      @path = file_path
-      @resources = []
-      @resource_count = 0
-
+      @path, @resources, @resource_count = file_path, [], 0
       evaluate_contents
-    end
-
-    def evaluate_contents
-      evaluate_file path
-
-      logger.debug "Found #{@resource_count} resource(s) in #{path}:"
-      resources.each { |res| logger.debug "  #{res}" }
     end
 
     def resource(provider, type, name, &block)
@@ -36,6 +27,16 @@ module Infraset
     def each
       resources.each { |r| yield r }
     end
+
+
+    private
+
+      def evaluate_contents
+        evaluate_file path
+
+        logger.debug "Found #{@resource_count} resource(s) in #{path}:"
+        resources.each { |res| logger.debug "  #{res}" }
+      end
 
   end
 end

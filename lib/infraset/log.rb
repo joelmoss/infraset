@@ -16,28 +16,32 @@ module Infraset
         end
       end
 
-      def added(resource, &block)
+      def created(resource, &block)
         $stdout.puts Paint[msg2str("   + #{resource}"), :green]
         yield
       end
 
-      def modified(resource, &block)
+      def recreated(resource, &block)
+        $stdout.puts Paint[msg2str(" -/+ #{resource}"), :green]
+        yield
+      end
+
+      def updated(resource, &block)
         $stdout.puts Paint[msg2str("   ~ #{resource}"), :yellow]
         yield
       end
 
-      def removed(resource)
+      def deleted(resource)
         $stdout.puts Paint[msg2str("   - #{resource}"), :red]
         yield if block_given?
       end
 
       def debug(msg)
-        $stdout.puts "#{INDENT}#{msg}" if config.debug
+        $stdout.puts "#{INDENT}#{msg}" if configuration.debug
       end
 
       def fatal(msg)
         $stderr.puts "\n   " + msg2str(msg)
-        exit 1
       end
 
 
@@ -52,7 +56,7 @@ module Infraset
             msg
           when ::Exception
             out = Paint["! #{msg.message} (#{msg.class})", :red]
-            if config.debug
+            if configuration.debug
               out << "\n     " << (msg.backtrace || []).join("\n     ")
             else
               out

@@ -1,5 +1,5 @@
 require 'infraset'
-require 'infraset/run_context'
+require 'infraset/resources'
 require 'infraset/resource_file'
 require 'infraset/resource_collection'
 
@@ -8,7 +8,7 @@ module Infraset
     include Mixlib::CLI
     include Utilities
 
-    attr_accessor :run_context
+    attr_accessor :resources
 
     option :resource_path,
       short: '-r PATH',
@@ -34,6 +34,12 @@ module Infraset
       description: 'Set the log level to debug'
 
 
+    def initialize(argv, stdin=STDIN, stdout=STDOUT, stderr=STDERR, kernel=Kernel)
+      @argv, @stdin, @stdout, @stderr, @kernel = argv, stdin, stdout, stderr, kernel
+      $stdout, $stderr = @stdout, @stderr
+      super(*{})
+    end
+
     # The main execution method that is called when the CLI is run. Exits with a non-zero exit code
     # if unsuccessful. If the `execution` option is false, then any resource plan will not be
     # executed.
@@ -47,50 +53,151 @@ module Infraset
     #    and/or removed. To do this, we generate the planned state and compare it against the
     #    current state.
     # 5. Execute the resource plan.
-    def run
+    def execute!
       setup
 
-      collect_resources
-      read_state
-      refresh_state
-      compile_resources
-      execute_resources
-      write_state
+      # Read the current state and populate the `resources`.
+      read_current_state
 
-      exit 0
+      # Collect any resources from the resource files, and update the `resources`.
+      collect_resources
+
+      validate_uids!
+      generate_plan_for(plan_summary)
+
+      # read_state
+      # refresh_state
+      # compile_resources
+      # execute_resources
+      # write_state
+
+      @kernel.exit 0
     rescue => e
       logger.fatal e
+      @kernel.exit 1
     end
 
-    # Collect the resources at the `resource_path` by scanning for Ruby files at the top level, and
-    # add them to the `resource_collection` of the `run_context`.
-    def collect_resources
-      logger.info "Collecting resources from #{config.resource_path}" do
-        Dir.glob(File.join(config.resource_path, "*.rb")).each do |file|
-          run_context.resource_collection << ResourceFile.new(file)
+    # Check that each resource UID is unique, otherwise raise an exception.
+    def validate_uids!
+      resources.each do |uid,res|
+        matching = resources.find_all { |r_uid,r_res| r_uid == uid }
+        if matching.count > 1
+          raise "#{resource} is not unique, because another resource has been found with the same UID" +
+                " (#{resource.uid}).\n     " + matching.map { |r| "#{r} in #{r.path}" }.join("\n     ")
         end
       end
     end
 
+    def generate_plan_for(summary)
+      summary.each do |action,uids|
+        next if uids.count < 1
+
+        logger.info "Will #{action} #{uids.count} resource(s)..." do
+          uids.each do |uid|
+            if action == :delete
+              logger.deleted uid
+            elsif action == :create
+              r = resources[uid]
+
+              logger.created r do
+                length = Hash[r.attributes.sort_by { |key, val| key.length }].keys.last.length
+                r.attributes.each do |name,attr|
+                  name = "#{name}:".ljust(length+2)
+                  logger.info "#{name} #{attr.value.inspect}"
+                end
+              end
+            elsif action == :recreate
+              r = resources[uid]
+
+              logger.recreated r do
+                length = Hash[r.attributes.sort_by { |key, val| key.length }].keys.last.length
+                r.attributes.each do |name,attr|
+                  name = "#{name}:".ljust(length+2)
+                  if attr.diff
+                    diff = attr.diff
+                    recreate_log = nil
+
+                    # Does modifying this attribute require that we recreate a new resource?
+                    if attr.options[:recreate_on_update]
+                      recreate_log = Paint['  * Forces new resource!', :red]
+                    end
+
+                    logger.info "#{name} #{diff[:old_value].inspect} => #{diff[:new_value].inspect}#{recreate_log}"
+                  else
+                    logger.info "#{name} #{attr.value.inspect}"
+                  end
+                end
+              end
+            elsif action == :update
+              r = resources[uid]
+
+              logger.updated r do
+                length = r.diff.sort_by { |type,name,old,new| name.length }.last[1].length
+                r.diff.each do |type,name,old,new|
+                  recreate_log = nil
+
+                  # Does modifying this attribute require that we recreate a new resource?
+                  if r.should_recreate_for?(name)
+                    recreate_log = Paint['  *Forces new resource!', :red]
+                  end
+
+                  name = "#{name}:".ljust(length+2)
+                  logger.info "#{name} #{old.inspect} => #{new.inspect}#{recreate_log}"
+                end
+              end
+            end
+          end
+        end
+      end
+
+      logger.info "\n   Plan: #{summary[:create].count} to create, #{summary[:update].count} to " +
+                  "update, #{summary[:delete].count} to destroy.\n\n"
+    end
+
+    def plan_summary
+      plan = {
+        create:   [],
+        recreate: [],
+        update:   [],
+        delete:   []
+      }
+      resources.each { |uid,res| plan[res.planned_action] << uid }
+      plan
+    end
+
     # Fetches and reads the current state if available in the state file. Otherwise, a new empty
-    # state file is created. This read state is then saved to the run context as the current state.
-    def read_state
-      logger.info "Reading current state from #{config.state_file}" do
-        state_file = File.expand_path(config.state_file)
+    # state file is created. This state is then saved to the run context as the current state.
+    def read_current_state
+      logger.info "Reading current state from #{configuration.state_file}" do
+        state_file = File.expand_path(configuration.state_file)
         if File.exist?(state_file)
           begin
-            run_context.current_state = JSON.parse(IO.read(state_file))
+            JSON.parse(IO.read(state_file))
           rescue => e
             raise e.class, "Unable to read/parse state file\n     #{e}"
-          end
+          end.each { |uid,params| resources[uid] = params }
         else
           logger.info "State file does not exist at #{state_file}. Creating..."
           state_dir = File.dirname(state_file)
           if Dir.exist? state_dir
-            File.write state_file, JSON.generate(run_context.current_state)
+            File.write state_file, resources.to_json
           else
             raise "Cannot create state file in #{state_dir}. Does that directory exist?"
           end
+        end
+      end
+    end
+
+    # Collect the resources at the `resource_path` by scanning for Ruby files at the top level, and
+    # add them to the `resources` collection.
+    def collect_resources
+      logger.info "Collecting resources from #{configuration.resource_path}" do
+        Dir.glob(File.join(configuration.resource_path, "*.rb")).each do |file|
+          resources.add_or_update ResourceFile.new(file)
+        end
+
+        resources.each do |uid,res|
+          res.should_delete! unless res.found_in_files
         end
       end
     end
@@ -115,14 +222,14 @@ module Infraset
     def execute_resources
       logger.info "Executing #{run_context.resource_collection.count} resource(s)" do
         run_context.execute!
-      end if config.execute
+      end if configuration.execute
     end
 
     # Write the state back to the state file from the run context.
     def write_state
-      logger.info "Writing state to #{config.state_file}" do
+      logger.info "Writing state to #{configuration.state_file}" do
         run_context.write_state!
-      end if config.execute
+      end if configuration.execute
     end
 
 
@@ -130,9 +237,9 @@ module Infraset
 
       def setup
         puts banner if $stdout.tty?
-        parse_options
-        config.merge! config
-        @run_context = RunContext.new
+        parse_options @argv
+        configuration.merge! config
+        @resources = Resources.new
       end
 
       def banner

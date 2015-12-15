@@ -3,4 +3,4 @@
 $:.push File.expand_path('../../lib', __FILE__)
 require 'infraset/cli'
 
-Infraset::CLI.new.run
+Infraset::CLI.new(ARGV.dup).execute!

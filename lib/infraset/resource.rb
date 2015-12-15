@@ -1,6 +1,8 @@
 require 'forwardable'
 require 'cleanroom'
 
+require 'infraset/attribute'
+
 module Infraset
   class Resource
     extend Forwardable
@@ -8,32 +10,21 @@ module Infraset
     include Infraset::Utilities
 
     NULL = Object.new.freeze
-    ATTRIBUTE_TYPES = [ String, Array ]
 
-    attr_accessor :attributes
-    attr_writer :planned_state
-    def_delegators :@loader, :namespace, :provider, :type, :path, :name
+    attr_accessor :namespace, :provider, :type, :path, :name, :id, :planned, :diff, :found_in_files
 
     class << self
-
       # Define and expose an attribute with the given 'name`, `type` and `options`.
       def attribute(name, type, options = {})
         name = name.to_sym
-        unless ATTRIBUTE_TYPES.include? type
-          raise TypeError, "Attribute type of '#{type}' is not supported"
-        end
-
-        attributes[name] = {
-          type: type,
-          options: options
-        }
+        attributes[name] = Attribute.new(name, type, options)
+        @named_attribute = name.to_s if options[:default] == :name
 
         define_method name do |value=NULL|
           if value.equal?(NULL) # reader
-            planned_state[:attributes][name] ||= default_for(name)
+            attributes[name].value
           else # writer
-            validate_attribute_type name, planned_state[:attributes][name]
-            planned_state[:attributes][name] = value
+            attributes[name].value = value
           end
         end
 
@@ -44,55 +35,63 @@ module Infraset
         @attributes ||= from_superclass(:attributes, {}.with_indifferent_access).dup
       end
 
+      def named_attribute
+        @named_attribute ||= from_superclass(:named_attribute, NULL).dup
+      end
     end
 
 
-    def initialize(loader)
-      @loader = loader
+    # Initializes a resource.
+    #
+    # name  - The name of the resource as a String.
+    # prov  - A Hash defining the provider name, type and ID (if the resource exists).
+    # attrs - The attributes of this resource as a Hash.
+    def initialize(name, prov={}, attrs={})
       @to_be_created = false
       @to_be_recreated = false
       @to_be_updated = false
       @to_be_deleted = false
+      @found_in_files = false
+
+      if name.is_a? ResourceLoader
+        @provider, @type, @name, @id = name.provider, name.type, name.name, nil
+        @path, @namespace = name.path, name.namespace
+      else
+        @provider, @type, @name, @id = prov[:name], prov[:type], name, prov[:id]
+        @path, @namespace = nil, nil
+      end
+
+      # Duplicate each attribute to ensure they are unique to the instance.
+      attributes.each { |key,val| attributes[key] = val.dup }
+
+      # Take any named attribute and set its value from the resource name.
+      attributes[named_attribute].value = @name unless named_attribute.equal?(NULL)
+
+      # Update the attributes with the values from the `attrs` argument.
+      attrs.each { |key,val| send key, val }
+
+      validate!
     end
 
     def exist?
       !current_state[:id].nil?
     end
 
-    def planned_state
-      @planned_state ||= {id: nil, attributes: defaults}.with_indifferent_access
-    end
-
-    def current_state
-      @current_state ||= {id: nil, attributes: defaults}.with_indifferent_access
-    end
-
-    def current_state=(state)
-      if state
-        @planned_state[:id] = state[:id]
-        @current_state = state
-      end
-    end
-
-    def current_attributes
-      current_state[:attributes]
-    end
-
-    def planned_attributes
-      planned_state[:attributes]
-    end
-
-    def diff
-      @diff ||= HashDiff.diff(current_attributes, planned_attributes)
+    def diff_against(res)
+      HashDiff.diff attributes_hash, res.attributes_hash
     end
 
     def should_recreate_for?(attr_name)
-      recreate = attributes[attr_name][:options][:recreate_on_update]
+      recreate = attributes[attr_name].options[:recreate_on_update]
       recreate = recreate.nil? ? false : recreate
     end
 
     def to_s
       uid
+    end
+
+    def print_attributes
+      attributes.each { |k,v| logger.debug "#{k}: #{v.value}" }
     end
 
     def execute!
@@ -132,37 +131,57 @@ module Infraset
     end
 
     def attributes
-      self.class.attributes
+      @attributes ||= self.class.attributes.dup
     end
 
-    # Mark this resource to be created.
-    def should_create!
-      @to_be_created = true
+    def attributes_hash
+      hash = {}
+      attributes.each do |n,v|
+        hash[n] = v.value
+      end
+      hash
     end
 
-    # Mark this resource to be created.
-    def should_recreate!
-      @to_be_recreated = true
+    def named_attribute
+      @named_attribute ||= self.class.named_attribute.dup
     end
 
-    # Mark this resource to be updated.
-    def should_update!
-      @to_be_updated = true
+    %w( create recreate update delete ).each do |action|
+      # Mark this resource to be `action`.
+      define_method "should_#{action}!" do |new_res=nil|
+        instance_variable_set :"@to_be_#{action}d", true
+        planned = new_res if %w(recreate update).include? action
+        self
+      end
+
+      # Should this resource be `action`d.
+      define_method "should_#{action}?" do
+        instance_variable_get :"@to_be_#{action}d"
+      end
     end
 
-    # Mark this resource to be deleted.
-    def should_delete!
-      @to_be_deleted = true
+    def planned_action
+      if @to_be_created
+        :create
+      elsif @to_be_recreated
+        :recreate
+      elsif @to_be_updated
+        :update
+      elsif @to_be_deleted
+        :delete
+      else
+        nil
+      end
     end
 
     # Validate this resource. Right now this only validates any required attributes.
     def validate!
-      attributes.each do |name, opts|
-        if opts[:options][:required] && planned_attributes[name].nil?
+      attributes.each do |name, attr|
+        if attr.options[:required] && planned_attributes[name].nil?
           raise "#{self} '#{name}' attribute is required"
-        elsif opts[:options][:required_if]
-          req_if = opts[:options][:required_if]
-          if req_if.is_a?(Symbol) && (respond_to?(req_if, true) ? send(req_if) : req_if) && planned_attributes[name].nil?
+        elsif attr.options[:required_if]
+          req_if = attr.options[:required_if]
+          if req_if.is_a?(Symbol) && (respond_to?(req_if, true) ? send(req_if) : req_if) && attributes[name].nil?
             raise "#{self} '#{name}' attribute is required"
           end
         end
@@ -180,25 +199,6 @@ module Infraset
             defs[name] = default_for(name)
           end
           defs
-        end
-      end
-
-      def default_for(attr_name)
-        if default = attributes[attr_name][:options][:default]
-          if default.is_a?(Symbol)
-            respond_to?(default, true) ? send(default) : default
-          else
-            default
-          end
-        else
-          nil
-        end
-      end
-
-      def validate_attribute_type(name, value)
-        attr_object = self.class.attributes[name]
-        if value && !value.is_a?(attr_object[:type])
-          raise TypeError, "value of attribute '#{name}' is not a #{attr_object[:type]}"
         end
       end
 

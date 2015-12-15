@@ -1,22 +1,27 @@
+require 'infraset/resources'
+
 module Infraset
   class RunContext
     include Infraset::Utilities
 
-    attr_accessor :resource_collection
-    attr_accessor :planned_state
+    attr_accessor :current_resources, :planned_resources, :planned_state
     attr_reader   :current_state
 
 
     def initialize
-      @resource_collection = ResourceCollection.new
+      @current_resources, @planned_resources = Resources.new, Resources.new
       @current_state = {resources:{}}.with_indifferent_access
+      @planned_state = {resources:{}}.with_indifferent_access
     end
 
-    # Set the current state  on the instance variables of the same name, and also apply each
-    # resource's state on it's corresponding resource object.
+    # Set the current state and resources.
     def current_state=(state)
       @current_state = state.with_indifferent_access
-      resource_collection.current_state = current_state[:resources]
+
+      # Build the current resources from the current state
+      current_state[:resources].each do |uid,params|
+        current_resources[uid] = params
+      end
     end
 
     # Compile the resources found in the `resource_collection` by comparing with the current state.
