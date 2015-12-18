@@ -11,7 +11,7 @@ module Infraset
 
     NULL = Object.new.freeze
 
-    attr_accessor :namespace, :provider, :type, :path, :name, :id, :planned, :diff, :found_in_files
+    attr_accessor :namespace, :provider, :type, :path, :name, :id, :planned, :diff
 
     class << self
       # Define and expose an attribute with the given 'name`, `type` and `options`.
@@ -51,7 +51,6 @@ module Infraset
       @to_be_recreated = false
       @to_be_updated = false
       @to_be_deleted = false
-      @found_in_files = false
 
       if name.is_a? ResourceLoader
         @provider, @type, @name, @id = name.provider, name.type, name.name, nil

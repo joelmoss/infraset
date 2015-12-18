@@ -16,7 +16,7 @@ module Infraset
                   recreate_on_update: true,
                   required_if: :vpc_given?
         attribute :comment, String,
-                  default: 'Managed by Infraset', recreate_on_update: true
+                  default: 'Managed by Infraset'
 
 
         def execute

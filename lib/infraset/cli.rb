@@ -1,4 +1,5 @@
 require 'infraset'
+require 'infraset/run_context'
 require 'infraset/resources'
 require 'infraset/resource_file'
 require 'infraset/resource_collection'
@@ -44,32 +45,25 @@ module Infraset
     # if unsuccessful. If the `execution` option is false, then any resource plan will not be
     # executed.
     #
-    # 1. We scan the `resource_path` for Ruby files and collect the resources found within them, and
-    #    add each resource to the `run_context.resource_collection`.
-    # 2. Read the current state from the `state_file` if it exists.
-    # 3. Refresh the current state found in step 2, by querying the provider of each resource and
-    #    updating the current state.
-    # 4. Compile the resources and build the plan of the what resources will be added, modified
-    #    and/or removed. To do this, we generate the planned state and compare it against the
-    #    current state.
-    # 5. Execute the resource plan.
+    # 1. Read the state file (if present), and populate the `state`.
+    # 2. Scan the `resource_path` for Ruby files and collect the resources found within them, and
+    #    add populate the `resources`.
+    # 3. Compare the state from step 1, with the resources from step 2, which will produce and
+    #    output an execution plan of changed resources.
+    # 4. Execute the plan.
+    # 5. Save the successful plan as the current state.
+    #
     def execute!
       setup
 
-      # Read the current state and populate the `resources`.
-      read_current_state
+      # Read the current state and populate the `state`.
+      read_state
 
-      # Collect any resources from the resource files, and update the `resources`.
+      # Collect any resources from the resource files, and validate them.
       collect_resources
 
-      validate_uids!
-      generate_plan_for(plan_summary)
-
-      # read_state
-      # refresh_state
-      # compile_resources
-      # execute_resources
-      # write_state
+      # Build and print the plan.
+      build_and_print_plan
 
       @kernel.exit 0
     rescue => e
@@ -77,97 +71,9 @@ module Infraset
       @kernel.exit 1
     end
 
-    # Check that each resource UID is unique, otherwise raise an exception.
-    def validate_uids!
-      resources.each do |uid,res|
-        matching = resources.find_all { |r_uid,r_res| r_uid == uid }
-        if matching.count > 1
-          raise "#{resource} is not unique, because another resource has been found with the same UID" +
-                " (#{resource.uid}).\n     " + matching.map { |r| "#{r} in #{r.path}" }.join("\n     ")
-        end
-      end
-    end
-
-    def generate_plan_for(summary)
-      summary.each do |action,uids|
-        next if uids.count < 1
-
-        logger.info "Will #{action} #{uids.count} resource(s)..." do
-          uids.each do |uid|
-            if action == :delete
-              logger.deleted uid
-            elsif action == :create
-              r = resources[uid]
-
-              logger.created r do
-                length = Hash[r.attributes.sort_by { |key, val| key.length }].keys.last.length
-                r.attributes.each do |name,attr|
-                  name = "#{name}:".ljust(length+2)
-                  logger.info "#{name} #{attr.value.inspect}"
-                end
-              end
-            elsif action == :recreate
-              r = resources[uid]
-
-              logger.recreated r do
-                length = Hash[r.attributes.sort_by { |key, val| key.length }].keys.last.length
-                r.attributes.each do |name,attr|
-                  name = "#{name}:".ljust(length+2)
-                  if attr.diff
-                    diff = attr.diff
-                    recreate_log = nil
-
-                    # Does modifying this attribute require that we recreate a new resource?
-                    if attr.options[:recreate_on_update]
-                      recreate_log = Paint['  * Forces new resource!', :red]
-                    end
-
-                    logger.info "#{name} #{diff[:old_value].inspect} => #{diff[:new_value].inspect}#{recreate_log}"
-                  else
-                    logger.info "#{name} #{attr.value.inspect}"
-                  end
-                end
-              end
-            elsif action == :update
-              r = resources[uid]
-
-              logger.updated r do
-                length = r.diff.sort_by { |type,name,old,new| name.length }.last[1].length
-                r.diff.each do |type,name,old,new|
-                  recreate_log = nil
-
-                  # Does modifying this attribute require that we recreate a new resource?
-                  if r.should_recreate_for?(name)
-                    recreate_log = Paint['  *Forces new resource!', :red]
-                  end
-
-                  name = "#{name}:".ljust(length+2)
-                  logger.info "#{name} #{old.inspect} => #{new.inspect}#{recreate_log}"
-                end
-              end
-            end
-          end
-        end
-      end
-
-      logger.info "\n   Plan: #{summary[:create].count} to create, #{summary[:update].count} to " +
-                  "update, #{summary[:delete].count} to destroy.\n\n"
-    end
-
-    def plan_summary
-      plan = {
-        create:   [],
-        recreate: [],
-        update:   [],
-        delete:   []
-      }
-      resources.each { |uid,res| plan[res.planned_action] << uid }
-      plan
-    end
-
     # Fetches and reads the current state if available in the state file. Otherwise, a new empty
-    # state file is created. This state is then saved to the run context as the current state.
-    def read_current_state
+    # state file is created. This state is then saved as a collection of the current resources.
+    def read_state
       logger.info "Reading current state from #{configuration.state_file}" do
         state_file = File.expand_path(configuration.state_file)
         if File.exist?(state_file)
@@ -175,16 +81,19 @@ module Infraset
             JSON.parse(IO.read(state_file))
           rescue => e
             raise e.class, "Unable to read/parse state file\n     #{e}"
-          end.each { |uid,params| resources[uid] = params }
+          end.each { |uid,params| @run_context.add_state uid, params }
         else
           logger.info "State file does not exist at #{state_file}. Creating..."
           state_dir = File.dirname(state_file)
           if Dir.exist? state_dir
-            File.write state_file, resources.to_json
+            File.write state_file, {}.to_json
           else
             raise "Cannot create state file in #{state_dir}. Does that directory exist?"
           end
         end
+
+        logger.debug "Found #{@run_context.state.count} resource(s) in state:"
+        @run_context.state.each { |uid,res| logger.debug "  #{uid}" }
       end
     end
 
@@ -193,13 +102,21 @@ module Infraset
     def collect_resources
       logger.info "Collecting resources from #{configuration.resource_path}" do
         Dir.glob(File.join(configuration.resource_path, "*.rb")).each do |file|
-          resources.add_or_update ResourceFile.new(file)
-        end
-
-        resources.each do |uid,res|
-          res.should_delete! unless res.found_in_files
+          @run_context.add_resource_from_file ResourceFile.new(file)
         end
       end
+    end
+
+    def build_and_print_plan
+      logger.info "Building the execution plan" do
+        @run_context.build_plan
+
+        count = 0
+        @run_context.plan.each { |action,data| count += data.count }
+        logger.debug "Found #{count} resources in execution plan"
+      end
+
+      @run_context.print_plan
     end
 
     # TODO!
@@ -239,7 +156,7 @@ module Infraset
         puts banner if $stdout.tty?
         parse_options @argv
         configuration.merge! config
-        @resources = Resources.new
+        @run_context = RunContext.new
       end
 
       def banner

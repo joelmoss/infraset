@@ -4,58 +4,88 @@ module Infraset
   class RunContext
     include Infraset::Utilities
 
-    attr_accessor :current_resources, :planned_resources, :planned_state
-    attr_reader   :current_state
-
+    attr_accessor :resources, :state
 
     def initialize
-      @current_resources, @planned_resources = Resources.new, Resources.new
-      @current_state = {resources:{}}.with_indifferent_access
-      @planned_state = {resources:{}}.with_indifferent_access
+      @state, @resources = Resources.new, Resources.new
     end
 
-    # Set the current state and resources.
-    def current_state=(state)
-      @current_state = state.with_indifferent_access
+    # Validate the given `resource` and add it to the current state.
+    def add_state(uid, resource)
+      state.validate! resource
+      state[uid] = resource
+    end
 
-      # Build the current resources from the current state
-      current_state[:resources].each do |uid,params|
-        current_resources[uid] = params
+    # Validate each resource found in the given resource `file` and add to the resources.
+    def add_resource_from_file(file)
+      file.each do |resource|
+        resources.validate! resource
+        resources[resource.uid] = resource
       end
     end
 
-    # Compile the resources found in the `resource_collection` by comparing with the current state.
-    # This will determine what resources should be added, removed and/or modified.
-    #
-    # Resources are global, and therefore require a way to uniquely identify them across the state
-    # file and resource files. While some resources unique identifier (UID) can be automatically
-    # determined, some cannot. In this case, a unique name is required, otherwise a warning will be
-    # shown if the UID cannot be determined.
-    #
-    # For example, the following resource's UID can be automatically determined because the
-    # combination of the domain and VPC must be unique on AWS, so the UID will be the domain and VPC
-    # ID concatenated as `mydomain.com/vpc-1234`.
-    #
-    #   resource :aws, :route53_zone, 'mydomain.com' do
-    #     vpc 'vpc-1234'
-    #   end
-    #
-    # The following resource's UID will be `mydomain.com`:
-    #
-    #   resource :aws, :route53_zone, 'mydomain.com'
-    #
-    # While the above will successfully compile, if you add another identical resource, it will fail
-    # with a duplication warning. To resolve this, simply give the resource a unique name:
-    #
-    #   resource :aws, :route53_zone, 'primary mydomain.com' do
-    #     domain 'mydomain.com'
-    #   end
-    #
-    # The above will have a UID of `primary mydomain.com`.
-    def compile!
-      resource_collection.validate_uids!
-      resource_collection.validate!
-      generate_plan_for plan_summary
+    def plan
+      @plan ||= {
+        create: {},
+        recreate: {},
+        update: {},
+        delete: {}
+      }.with_indifferent_access
+    end
+
+    def build_plan
+      plan_changes
+      plan_deleted
+    end
+
+    def print_plan
+      plan.each do |action,uids|
+        next if uids.count < 1
+
+        logger.info "Will #{action} #{uids.count} resource(s)..." do
+          uids.each do |uid,diff|
+            case action
+            when 'delete'
+              logger.deleted uid
+            when 'create'
+              logger.created (r = resources[uid]) do
+                length = longest_attr_by_name(r.attributes)
+                r.attributes.each do |name,attr|
+                  name = "#{name}:".rjust(length+2)
+                  logger.info "#{name} #{attr.value.inspect}"
+                end
+              end
+            when 'recreate'
+              logger.recreated (r = resources[uid]) do
+                length = longest_attr_by_name(r.attributes)
+
+                recreate_log = nil
+                diff.each do |type,name,old,new|
+                  if r.should_recreate_for?(name)
+                    recreate_log = Paint['  * Forces new resource!', :red]
+                  end
+
+                  name = "#{name}:".rjust(length+2)
+                  logger.info "#{name} #{old.inspect} => #{new.inspect}#{recreate_log}"
+                end
+              end
+            when 'update'
+              logger.updated (r = resources[uid]) do
+                length = diff.sort_by { |type,name,old,new| name.length }.last[1].length
+                diff.each do |type,name,old,new|
+                  name = "#{name}:".rjust(length+2)
+                  logger.info "#{name} #{old.inspect} => #{new.inspect}"
+                end
+              end
+            end
+          end
+        end
+      end
+
+      logger.info "\n   Plan: #{plan[:create].count} to create, " +
+                  "#{plan[:recreate].count} to recreate, " +
+                  "#{plan[:update].count} to update, " +
+                  "#{plan[:delete].count} to destroy.\n\n"
     end
 
     def execute!
@@ -75,82 +105,45 @@ module Infraset
 
     private
 
-      def generate_plan_for(summary)
-        summary.each do |action,uids|
-          next if uids.count < 1
+      # Find new and updated resources. If the resource already exists in the current state, the
+      # existing resource will be updated or recreated. Otherwise it will be created.
+      def plan_changes
+        resources.each do |uid,res|
+          if state[uid] # resource exists
+            existing_resource = state[uid]
 
-          logger.info "Will #{action} #{uids.count} resource(s)..." do
-            uids.each do |uid|
-              if action == :delete
-                r = current_state[:resources].find { |state_uid,attrs| uid == state_uid }
-                # r.should_delete!
-                logger.removed uid
-              elsif action == :create
-                r = resource_collection.find { |r| r.uid == uid }
-                r.should_create!
-
-                logger.added r do
-                  length = Hash[r.attributes.sort_by { |key, val| key.length }].keys.last.length
-                  r.attributes.each do |key,params|
-                    name = "#{key}:".ljust(length+2)
-                    value = r.planned_attributes[key] || r.send(key)
-                    logger.info "#{name} #{value.inspect}"
-                  end
-                end
-              elsif action == :update
-                r = resource_collection.find { |r| r.uid == uid }
-                r.should_update!
-
-                logger.modified r do
-                  length = r.diff.sort_by { |type,name,old,new| name.length }.last[1].length
-                  r.diff.each do |type,name,old,new|
-                    recreate_log = nil
-
-                    # Does modifying this attribute require that we recreate a new resource?
-                    if r.should_recreate_for?(name)
-                      r.should_recreate!
-                      recreate_log = Paint['  *Forces new resource!', :red]
-                    end
-
-                    name = "#{name}:".ljust(length+2)
-                    logger.info "#{name} #{old.inspect} => #{new.inspect}#{recreate_log}"
-                  end
+            # Compare current resource against the new.
+            unless (diff = existing_resource.diff_against(res)).empty?
+              should_recreate = false
+              diff.each do |type,name,old,new|
+                # Does modifying this resource require that we recreate the it?
+                if existing_resource.should_recreate_for?(name)
+                  should_recreate = true
+                  break
                 end
               end
+
+              if should_recreate
+                plan[:recreate][uid] = diff
+              else
+                plan[:update][uid] = diff
+              end
             end
+          else # resource does not exist
+            plan[:create][uid] = []
           end
         end
-
-        logger.info "\n   Plan: #{summary[:create].count} to create, #{summary[:update].count} to " +
-                    "update, #{summary[:delete].count} to destroy.\n\n"
       end
 
-      def plan_summary
-        plan = {
-          create: [],
-          update: [],
-          delete: []
-        }
-
-        # First we loop through the current state to find updated and deleted resources
-        current_state[:resources].each do |uid,attrs|
-          if resource = resource_collection.find { |r| r.uid == uid } # resource is defined
-            # Resource has been modified
-            plan[:update] << uid unless resource.diff.empty?
-          else
-            # Resource is not defined, so it must have been deleted
-            plan[:delete] << uid
-          end
+      # Find deleted resources - resources that exist in state only.
+      def plan_deleted
+        state.each do |uid,res|
+          plan[:delete][uid] = [] unless resources[uid]
         end
+      end
 
-        # Now loop through the defined resources (resource_collection) to find new resources
-        resource_collection.each do |resource|
-          unless current_state[:resources].find { |uid,attrs| uid == resource.uid }
-            plan[:create] << resource.uid
-          end
-        end
-
-        plan
+      def longest_attr_by_name(attributes)
+        Hash[attributes.sort_by { |key, val| key.length }].keys.last.length
       end
 
   end

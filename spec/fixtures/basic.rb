@@ -8,10 +8,9 @@ end
 
 # resource :aws, :route53_zone, 'joelmoss3.com'
 
-# resource :aws, :route53_zone, 'joelmoss.com' do
-#   comment 'blah'
-# end
-# resource :aws, :route53_zone, 'joelmoss.com'
+resource :aws, :route53_zone, 'joelmoss.com' do
+  comment 'adsf'
+end
 
 # resource :aws, :animal, 'milo' do
 #   species 'dog'
