@@ -56,14 +56,23 @@ module Infraset
     def execute!
       setup
 
-      # Read the current state and populate the `state`.
+      # Read the current state.
       read_state
+
+      # Refresh the state
+      refresh_state
 
       # Collect any resources from the resource files, and validate them.
       collect_resources
 
+      # Merge the state with the resources
+      merge_resources
+
       # Build and print the plan.
       build_and_print_plan
+
+      execute_resources
+      write_state
 
       @kernel.exit 0
     rescue => e
@@ -127,26 +136,25 @@ module Infraset
       end
     end
 
-    # Compile the resources found in the `resource_collection` of the `run_context`.
-    def compile_resources
-      logger.info "Compiling #{run_context.resource_collection.count} resource(s)" do
-        run_context.compile!
+    def merge_resources
+      logger.info "Merging resources..." do
+        @run_context.merge_resources
       end
     end
 
     # Execute the planned resources. These will be the resources that are new, modified, or
     # destroyed as compared to the current state.
     def execute_resources
-      logger.info "Executing #{run_context.resource_collection.count} resource(s)" do
-        run_context.execute!
-      end if configuration.execute
+      logger.info "Executing plan" do
+        @run_context.execute!
+      end if !@run_context.empty_plan? && configuration.execute
     end
 
     # Write the state back to the state file from the run context.
     def write_state
-      logger.info "Writing state to #{configuration.state_file}" do
-        run_context.write_state!
-      end if configuration.execute
+      logger.info "Writing state back to #{configuration.state_file}" do
+        @run_context.write_state!
+      end if !@run_context.empty_plan? && configuration.execute
     end
 
 

@@ -39,7 +39,9 @@ module Infraset
     #   end
     #
     # The above will have a UID of `primary mydomain.com`.
-    def validate!(resource)
+    def validate_uid_of!(resource)
+      return unless resource.respond_to?(:uid)
+
       matching = find_all { |uid,res| uid == resource.uid }
       if matching.count > 0
         raise "Resource `#{resource}' is not unique, because another resource has\n     " +

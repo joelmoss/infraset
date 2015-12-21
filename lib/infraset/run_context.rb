@@ -7,21 +7,33 @@ module Infraset
     attr_accessor :resources, :state
 
     def initialize
-      @state, @resources = Resources.new, Resources.new
+      @state, @resources, @executed = Resources.new, Resources.new, []
     end
 
     # Validate the given `resource` and add it to the current state.
     def add_state(uid, resource)
-      state.validate! resource
+      state.validate_uid_of! resource
       state[uid] = resource
     end
 
     # Validate each resource found in the given resource `file` and add to the resources.
     def add_resource_from_file(file)
       file.each do |resource|
-        resources.validate! resource
+        resources.validate_uid_of! resource
         resources[resource.uid] = resource
       end
+    end
+
+    # Merges the state into the resources.
+    def merge_resources
+      resources.each do |uid,resource|
+        next unless (existing = state[uid])
+        resource.id = existing.id
+      end
+    end
+
+    def empty_plan?
+      plan[:create].empty? && plan[:recreate].empty? && plan[:update].empty? && plan[:delete].empty?
     end
 
     def plan
@@ -89,17 +101,28 @@ module Infraset
     end
 
     def execute!
-      resource_collection.execute! { |resource| save_state resource }
-    end
+      plan.each do |action,uids|
+        next if uids.count < 1
 
-    def save_state(resource)
-      logger.debug "Saving state for #{resource}"
-      current_state[:resources][resource.uid] = resource.current_state
+        uids.each do |uid,diff|
+          if (res = resources[uid])
+            logger.info "Executing '#{action}' on #{uid}"
+            res.execute!(action)
+            state[uid] = res
+          else
+            if action == 'delete'
+              logger.info "Executing '#{action}' on #{uid}"
+              state[uid].execute!(action)
+              state.delete uid
+            end
+          end
+        end
+      end
     end
 
     def write_state!
-      state_file = File.expand_path(config.state_file)
-      File.write state_file, JSON.generate(current_state)
+      state_file = File.expand_path(configuration.state_file)
+      File.write state_file, state.to_json
     end
 
 

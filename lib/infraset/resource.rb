@@ -11,7 +11,7 @@ module Infraset
 
     NULL = Object.new.freeze
 
-    attr_accessor :namespace, :provider, :type, :path, :name, :id, :planned, :diff
+    attr_accessor :namespace, :provider, :type, :path, :name, :id
 
     class << self
       # Define and expose an attribute with the given 'name`, `type` and `options`.
@@ -47,11 +47,6 @@ module Infraset
     # prov  - A Hash defining the provider name, type and ID (if the resource exists).
     # attrs - The attributes of this resource as a Hash.
     def initialize(name, prov={}, attrs={})
-      @to_be_created = false
-      @to_be_recreated = false
-      @to_be_updated = false
-      @to_be_deleted = false
-
       if name.is_a? ResourceLoader
         @provider, @type, @name, @id = name.provider, name.type, name.name, nil
         @path, @namespace = name.path, name.namespace
@@ -77,7 +72,17 @@ module Infraset
     end
 
     def diff_against(res)
-      HashDiff.diff attributes_hash, res.attributes_hash
+      diff = HashDiff.diff(attributes_hash, res.attributes_hash)
+
+      # Check that any changes are uniquely different. For example a string that is `nil` and `""`.
+      # For such cases, no diff should be produced, and they should be treated the same.
+      diff.map do |type,name,old,new|
+        if attributes[name].type == String && old.empty? && new.nil?
+          nil
+        else
+          [type,name,old,new]
+        end
+      end.compact
     end
 
     def should_recreate_for?(attr_name)
@@ -93,36 +98,36 @@ module Infraset
       attributes.each { |k,v| logger.debug "#{k}: #{v.value}" }
     end
 
-    def execute!
-      if @to_be_created
-        save_state_after_creation execute
-      elsif @to_be_recreated
-        save_state_after_recreation execute
-      elsif @to_be_updated
-        save_state_after_update execute
-      elsif @to_be_deleted
-        save_state_after_deletion execute
+    def execute!(action)
+      if action == 'delete'
+        send :"#{action}!"
+      else
+        send :"save_resource_after_#{action}", send(:"#{action}!")
       end
     end
 
-    def execute
-      raise NotImplementedError, "#execute is not implemented on #{provider}:#{type}"
+    def to_json(a)
+      {
+        name: name,
+        provider: {
+          id: id,
+          name: provider,
+          type: type
+        },
+        attributes: attributes
+      }.to_json
     end
 
-    def save_state_after_creation
-      raise NotImplementedError, "#save_state_after_creation is not implemented on #{provider}:#{type}"
+    def save_resource_after_create(result)
+      raise NotImplementedError, "#save_resource_after_creation is not implemented on #{provider}:#{type}"
     end
 
-    def save_state_after_recreation
-      raise NotImplementedError, "#save_state_after_recreation is not implemented on #{provider}:#{type}"
+    def save_resource_after_recreate(result)
+      raise NotImplementedError, "#save_resource_after_recreation is not implemented on #{provider}:#{type}"
     end
 
-    def save_state_after_update
-      raise NotImplementedError, "#save_state_after_update is not implemented on #{provider}:#{type}"
-    end
-
-    def save_state_after_deletion
-      raise NotImplementedError, "#save_state_after_deletion is not implemented on #{provider}:#{type}"
+    def save_resource_after_update(result)
+      raise NotImplementedError, "#save_resource_after_update is not implemented on #{provider}:#{type}"
     end
 
     def uid
@@ -145,43 +150,16 @@ module Infraset
       @named_attribute ||= self.class.named_attribute.dup
     end
 
-    %w( create recreate update delete ).each do |action|
-      # Mark this resource to be `action`.
-      define_method "should_#{action}!" do |new_res=nil|
-        instance_variable_set :"@to_be_#{action}d", true
-        planned = new_res if %w(recreate update).include? action
-        self
-      end
-
-      # Should this resource be `action`d.
-      define_method "should_#{action}?" do
-        instance_variable_get :"@to_be_#{action}d"
-      end
-    end
-
-    def planned_action
-      if @to_be_created
-        :create
-      elsif @to_be_recreated
-        :recreate
-      elsif @to_be_updated
-        :update
-      elsif @to_be_deleted
-        :delete
-      else
-        nil
-      end
-    end
-
-    # Validate this resource. Right now this only validates any required attributes.
+    # Validate this resource. Right now this validates any required attributes, and that strings are
+    # not empty.
     def validate!
       attributes.each do |name, attr|
-        if attr.options[:required] && planned_attributes[name].nil?
+        if attr.options[:required] && attributes[name].blank?
           raise "#{self} '#{name}' attribute is required"
         elsif attr.options[:required_if]
           req_if = attr.options[:required_if]
-          if req_if.is_a?(Symbol) && (respond_to?(req_if, true) ? send(req_if) : req_if) && attributes[name].nil?
-            raise "#{self} '#{name}' attribute is required"
+          if req_if.is_a?(Symbol) && (respond_to?(req_if, true) ? send(req_if) : req_if) && attributes[name].blank?
+            raise "#{self} '#{name}' attribute is required, because `required_if` is given (`#{req_if}`)"
           end
         end
       end

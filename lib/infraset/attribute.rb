@@ -1,13 +1,12 @@
 module Infraset
   class Attribute
     ATTRIBUTE_TYPES = [ String, Array ]
-    attr_accessor :name, :type, :options, :diff
+    attr_accessor :name, :type, :options
 
 
     def initialize(name, type, options={})
       @name, @type = name, type
       @options = default_options.merge(options)
-      @diff = nil
 
       unless ATTRIBUTE_TYPES.include? type
         raise TypeError, "Attribute type of '#{type}' is not supported"
@@ -24,6 +23,22 @@ module Infraset
       end
 
       @value = val
+    end
+
+    def to_s
+      value.to_s
+    end
+
+    def blank?
+      value.nil? || value.empty?
+    end
+
+    def empty?
+      /\A[[:space:]]*\z/ === value
+    end
+
+    def nil?
+      value.nil?
     end
 
 
