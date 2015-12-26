@@ -1,7 +1,9 @@
 resource :aws, :route53_zone, 'joelmoss.com' do
   comment 'some comment'
+  vpc 'vpc-2f2f904b'
+  vpc_region 'us-east-1'
 end
-resource :aws, :route53_zone, 'joelmoss2.com'
+# resource :aws, :route53_zone, 'joelmoss2.com'
 
 # resource :aws, :route53_zone, 'joelmoss.com' do
 #   vpc 'vpc-2f2f904b'

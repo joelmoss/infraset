@@ -27,8 +27,13 @@ module Infraset
           zone = client.get_hosted_zone(id: id)
 
           self.comment = zone.hosted_zone.config.comment
-          self.vpc = (zone.respond_to?(:vpc) && zone.vpc && zone.vpc.vpc_id) || nil
-          self.vpc_region = (zone.respond_to?(:vpc) && zone.vpc && zone.vpc.vpc_region) || nil
+          if zone.vp_cs.empty?
+            self.vpc = nil
+            self.vpc_region = nil
+          else
+            self.vpc = zone.vp_cs[0].vpc_id
+            self.vpc_region = zone.vp_cs[0].vpc_region
+          end
 
           self
         end
