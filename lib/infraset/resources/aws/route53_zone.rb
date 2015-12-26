@@ -23,6 +23,16 @@ module Infraset
           vpc ? "#{provider}:#{type}[#{name}/#{vpc}]" : super
         end
 
+        def refresh!
+          zone = client.get_hosted_zone(id: id)
+
+          self.comment = zone.hosted_zone.config.comment
+          self.vpc = (zone.respond_to?(:vpc) && zone.vpc && zone.vpc.vpc_id) || nil
+          self.vpc_region = (zone.respond_to?(:vpc) && zone.vpc && zone.vpc.vpc_region) || nil
+
+          self
+        end
+
 
         private
 
@@ -65,10 +75,10 @@ module Infraset
 
           def save_resource_after_create(res)
             @id = res.hosted_zone.id.sub('/hostedzone/', '')
-            domain = res.hosted_zone.name.chomp('.')
-            comment = res.hosted_zone.config.comment
-            vpc = (res.respond_to?(:vpc) && res.vpc && res.vpc.vpc_id) || nil
-            vpc_region = (res.respond_to?(:vpc) && res.vpc && res.vpc.vpc_region) || nil
+            self.domain = res.hosted_zone.name.chomp('.')
+            self.comment = res.hosted_zone.config.comment
+            self.vpc = (res.respond_to?(:vpc) && res.vpc && res.vpc.vpc_id) || nil
+            self.vpc_region = (res.respond_to?(:vpc) && res.vpc && res.vpc.vpc_region) || nil
           end
 
           def save_resource_after_recreate(res)
@@ -76,7 +86,7 @@ module Infraset
           end
 
           def save_resource_after_update(res)
-            comment = res.hosted_zone.config.comment
+            self.comment = res.hosted_zone.config.comment
           end
 
           def client

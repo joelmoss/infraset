@@ -134,11 +134,11 @@ module Infraset
       @run_context.print_plan
     end
 
-    # TODO!
     # Loop through each resource in the current state and refresh it. This only refreshes the state
     # of existing resources by fetching the actual resource data from the provider.
     def refresh_state
-      logger.info "Refreshing current state... (TODO)" do
+      logger.info "Refreshing current state..." do
+        @run_context.refresh_state
       end
     end
 

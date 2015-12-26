@@ -28,6 +28,10 @@ module Infraset
           end
         end
 
+        define_method "#{name}=" do |value|
+          attributes[name].value = value
+        end
+
         expose name
       end
 
@@ -104,6 +108,11 @@ module Infraset
       else
         send :"save_resource_after_#{action}", send(:"#{action}!")
       end
+    end
+
+    # Refresh the current resource by fetching the current resource from its provider.
+    def refresh!
+      raise NotImplementedError, "#refresh! is not implemented on #{provider}:#{type}"
     end
 
     def to_json(a)

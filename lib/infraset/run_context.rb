@@ -32,6 +32,14 @@ module Infraset
       end
     end
 
+    def refresh_state
+      state.each do |uid,resource|
+        state[uid] = resource.refresh!
+      end
+
+      write_state!
+    end
+
     def empty_plan?
       plan[:create].empty? && plan[:recreate].empty? && plan[:update].empty? && plan[:delete].empty?
     end
