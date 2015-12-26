@@ -1,4 +1,6 @@
-# resource :aws, :route53_zone, 'joelmoss.com'
+resource :aws, :route53_zone, 'joelmoss.com' do
+  comment 'some comment'
+end
 # resource :aws, :route53_zone, 'joelmoss2.com'
 
 # resource :aws, :route53_zone, 'joelmoss.com' do

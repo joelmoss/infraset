@@ -59,20 +59,26 @@ module Infraset
       # Read the current state.
       read_state
 
-      # Refresh the state
+      # Refresh the state.
       refresh_state
 
       # Collect any resources from the resource files, and validate them.
       collect_resources
 
-      # Merge the state with the resources
+      # Merge the state with the resources.
       merge_resources
 
       # Build and print the plan.
       build_and_print_plan
 
-      execute_resources
-      write_state
+      # Execute and save the changed state.
+      if !@run_context.empty_plan? && configuration.execute
+        logger.ask "Do you wish to execute this plan? [y/n]\n"
+        if $stdin.getch == 'y'
+          execute_resources
+          write_state
+        end
+      end
 
       @kernel.exit 0
     rescue => e
@@ -147,14 +153,14 @@ module Infraset
     def execute_resources
       logger.info "Executing plan" do
         @run_context.execute!
-      end if !@run_context.empty_plan? && configuration.execute
+      end
     end
 
     # Write the state back to the state file from the run context.
     def write_state
       logger.info "Writing state back to #{configuration.state_file}" do
         @run_context.write_state!
-      end if !@run_context.empty_plan? && configuration.execute
+      end
     end
 
 

@@ -16,6 +16,10 @@ module Infraset
         end
       end
 
+      def ask(msg)
+        $stdout.puts Paint[msg2str("   #{msg}"), :bright]
+      end
+
       def created(resource, &block)
         $stdout.puts Paint[msg2str("   + #{resource}"), :green]
         yield
