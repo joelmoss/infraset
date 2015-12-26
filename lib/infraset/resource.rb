@@ -1,5 +1,6 @@
 require 'forwardable'
 require 'cleanroom'
+require 'hashdiff'
 
 require 'infraset/attribute'
 
@@ -71,10 +72,6 @@ module Infraset
       validate!
     end
 
-    def exist?
-      !current_state[:id].nil?
-    end
-
     def diff_against(res)
       diff = HashDiff.diff(attributes_hash, res.attributes_hash)
 
@@ -96,10 +93,6 @@ module Infraset
 
     def to_s
       uid
-    end
-
-    def print_attributes
-      attributes.each { |k,v| logger.debug "#{k}: #{v.value}" }
     end
 
     def execute!(action)

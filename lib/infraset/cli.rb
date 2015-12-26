@@ -2,7 +2,6 @@ require 'infraset'
 require 'infraset/run_context'
 require 'infraset/resources'
 require 'infraset/resource_file'
-require 'infraset/resource_collection'
 
 module Infraset
   class CLI
