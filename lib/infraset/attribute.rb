@@ -1,6 +1,6 @@
 module Infraset
   class Attribute
-    ATTRIBUTE_TYPES = [ String, Array ]
+    ATTRIBUTE_TYPES = [ String, Array, Integer ]
     attr_accessor :name, :type, :options
 
 
@@ -23,6 +23,10 @@ module Infraset
       end
 
       @value = val
+    end
+
+    def set_value(val, sanitize_attributes:false)
+      self.value = sanitize_attributes && !val.is_a?(type) ? send(:"#{type}", val) : val
     end
 
     def to_s

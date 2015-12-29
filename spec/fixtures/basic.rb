@@ -3,7 +3,12 @@ resource :aws, :route53_zone, 'joelmoss.com' do
   vpc 'vpc-2f2f904b'
   vpc_region 'us-east-1'
 end
-# resource :aws, :route53_zone, 'joelmoss2.com'
+
+resource :aws, :route53_record, 'www.joelmoss.com' do
+  zone_id 'Z2WOHHFBGAQ97L'
+  type 'A'
+  records ['192.0.2.1']
+end
 
 # resource :aws, :route53_zone, 'joelmoss.com' do
 #   vpc 'vpc-2f2f904b'

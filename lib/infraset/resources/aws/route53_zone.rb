@@ -20,7 +20,7 @@ module Infraset
 
 
         def uid
-          vpc ? "#{provider}:#{type}[#{name}/#{vpc}]" : super
+          vpc ? "#{@provider}:#{@type}[#{name}/#{vpc}]" : super
         end
 
         def refresh!
@@ -46,6 +46,19 @@ module Infraset
           end
 
           def create!
+            options = {
+              name: name,
+              hosted_zone_config: {
+                comment: comment
+              },
+              caller_reference: SecureRandom.uuid
+            }
+
+            options[:vpc] = {
+              vpc_id: vpc,
+              vpc_region: vpc_region
+            } if vpc
+
             client.create_hosted_zone options
           end
 
@@ -59,23 +72,6 @@ module Infraset
 
           def update!
             client.update_hosted_zone_comment id: id, comment: comment
-          end
-
-          def options
-            opts = {
-              name: name,
-              hosted_zone_config: {
-                comment: comment
-              },
-              caller_reference: SecureRandom.uuid
-            }
-
-            opts[:vpc] = {
-              vpc_id: vpc,
-              vpc_region: vpc_region
-            } if vpc
-
-            opts
           end
 
           def save_resource_after_create(res)

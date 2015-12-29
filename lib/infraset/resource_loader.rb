@@ -17,6 +17,7 @@ module Infraset
     def evaluate(&block)
       @resource_object = require_resource(@provider, @type).new(self)
       @resource_object.evaluate &block if block_given?
+      @resource_object.validate!
     end
 
     def resource

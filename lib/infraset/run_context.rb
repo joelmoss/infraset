@@ -1,4 +1,5 @@
 require 'infraset/resources'
+require 'infraset/state'
 
 module Infraset
   class RunContext
@@ -7,7 +8,7 @@ module Infraset
     attr_accessor :resources, :state
 
     def initialize
-      @state, @resources, @executed = Resources.new, Resources.new, []
+      @state, @resources, @executed = State.new, Resources.new, []
     end
 
     # Validate the given `resource` and add it to the current state.

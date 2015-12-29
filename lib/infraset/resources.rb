@@ -4,13 +4,20 @@ module Infraset
   class Resources < ActiveSupport::HashWithIndifferentAccess
     include Infraset::Utilities
 
-    def []=(uid, params)
-      if params.is_a?(Resource)
-        super uid, params
+    alias_method :append, :[]=
+
+    def []=(uid, params_or_resource)
+      add uid, params_or_resource
+    end
+
+    def add(uid, params_or_resource, sanitize_attributes:false)
+      if params_or_resource.is_a?(Resource)
+        append uid, params_or_resource
       else
-        params = params.with_indifferent_access
+        params = params_or_resource.with_indifferent_access
         resource_class = require_resource(params[:provider][:name], params[:provider][:type])
-        super uid, resource_class.new(params[:name], params[:provider], params[:attributes])
+        append uid, resource_class.new(params[:name], params[:provider], params[:attributes],
+          sanitize_attributes: sanitize_attributes)
       end
     end
 

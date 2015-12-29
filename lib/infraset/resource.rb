@@ -12,7 +12,7 @@ module Infraset
 
     NULL = Object.new.freeze
 
-    attr_accessor :namespace, :provider, :type, :path, :name, :id
+    attr_accessor :name, :id
 
     class << self
       # Define and expose an attribute with the given 'name`, `type` and `options`.
@@ -51,7 +51,7 @@ module Infraset
     # name  - The name of the resource as a String.
     # prov  - A Hash defining the provider name, type and ID (if the resource exists).
     # attrs - The attributes of this resource as a Hash.
-    def initialize(name, prov={}, attrs={})
+    def initialize(name, prov={}, attrs={}, sanitize_attributes:false)
       if name.is_a? ResourceLoader
         @provider, @type, @name, @id = name.provider, name.type, name.name, nil
         @path, @namespace = name.path, name.namespace
@@ -67,9 +67,9 @@ module Infraset
       attributes[named_attribute].value = @name unless named_attribute.equal?(NULL)
 
       # Update the attributes with the values from the `attrs` argument.
-      attrs.each { |key,val| send key, val }
-
-      validate!
+      attrs.each do |key,val|
+        attributes[key].set_value val, sanitize_attributes: sanitize_attributes
+      end
     end
 
     def diff_against(res)
@@ -105,7 +105,7 @@ module Infraset
 
     # Refresh the current resource by fetching the current resource from its provider.
     def refresh!
-      raise NotImplementedError, "#refresh! is not implemented on #{provider}:#{type}"
+      raise NotImplementedError, "#refresh! is not implemented on #{@provider}:#{@type}"
     end
 
     def to_json(a)
@@ -113,27 +113,27 @@ module Infraset
         name: name,
         provider: {
           id: id,
-          name: provider,
-          type: type
+          name: @provider,
+          type: @type
         },
         attributes: attributes
       }.to_json
     end
 
     def save_resource_after_create(result)
-      raise NotImplementedError, "#save_resource_after_creation is not implemented on #{provider}:#{type}"
+      raise NotImplementedError, "#save_resource_after_creation is not implemented on #{@provider}:#{@type}"
     end
 
     def save_resource_after_recreate(result)
-      raise NotImplementedError, "#save_resource_after_recreation is not implemented on #{provider}:#{type}"
+      raise NotImplementedError, "#save_resource_after_recreation is not implemented on #{@provider}:#{@type}"
     end
 
     def save_resource_after_update(result)
-      raise NotImplementedError, "#save_resource_after_update is not implemented on #{provider}:#{type}"
+      raise NotImplementedError, "#save_resource_after_update is not implemented on #{@provider}:#{@type}"
     end
 
     def uid
-      "#{provider}:#{type}[#{name}]"
+      "#{@provider}:#{@type}[#{name}]"
     end
 
     def attributes
