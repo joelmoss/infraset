@@ -45,6 +45,10 @@ module Infraset
       value.nil?
     end
 
+    def to_json(*args)
+      value.to_json
+    end
+
 
     private
 
