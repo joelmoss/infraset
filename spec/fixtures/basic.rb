@@ -5,7 +5,8 @@ resource :aws, :route53_zone, 'joelmoss.com' do
 end
 
 resource :aws, :route53_record, 'www.joelmoss.com' do
-  zone_id 'Z2WOHHFBGAQ97L'
+  zone_id refs('aws:route53_zone[joelmoss.com/vpc-2f2f904b]').id
+  # zone_id 'Z2WOHHFBGAQ97L'
   type 'A'
   records ['192.0.2.1']
 end

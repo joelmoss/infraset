@@ -25,19 +25,39 @@ module Infraset
       end
     end
 
-    # Merges the state into the resources.
-    def merge_resources
+    # Populate the resource ID's from the current state.
+    def populate_resource_ids
       resources.each do |uid,resource|
         next unless (existing = state[uid])
         resource.id = existing.id
       end
     end
 
-    def refresh_state
-      state.each do |uid,resource|
-        state[uid] = resource.refresh!
-      end
+    def validate_resources
+      resources.each { |uid,resource| resource.validate! }
+    end
 
+    # Some resource attributes are dynamic, so here we compile such attributes by converting them to
+    # static data. A dynamic attribute is one whose value is a symbol, and references another
+    # resource.
+    def compile_resources
+      resources.each do |uid,resource|
+        resource.attributes.each do |name,attr|
+          if attr.reference?
+            ref = resources[attr.reference.name]
+            if ref && ref_attr = ref.send(:"#{attr.reference.attribute}")
+              resources[uid].references << ref
+              attr.value = ref_attr
+            else
+              raise "Referenced resource `#{attr.reference}` not found."
+            end
+          end
+        end
+      end
+    end
+
+    def refresh_state
+      state.each { |uid,resource| state[uid] = resource.refresh! }
       write_state!
     end
 

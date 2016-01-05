@@ -7,8 +7,7 @@ module Infraset
     include Cleanroom
     include Infraset::Utilities
 
-    attr_reader :path
-    attr_reader :resources
+    attr_reader :path, :resources
 
 
     def initialize(file_path)

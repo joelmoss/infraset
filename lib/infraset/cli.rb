@@ -64,8 +64,14 @@ module Infraset
       # Collect any resources from the resource files, and validate them.
       collect_resources
 
-      # Merge the state with the resources.
-      merge_resources
+      # Populate the resource ID's from the current state.
+      populate_resource_ids
+
+      # Compile each resource
+      compile_resources
+
+      # Validate each resource
+      validate_resources
 
       # Build and print the plan.
       build_and_print_plan
@@ -136,14 +142,26 @@ module Infraset
     # Loop through each resource in the current state and refresh it. This only refreshes the state
     # of existing resources by fetching the actual resource data from the provider.
     def refresh_state
-      logger.info "Refreshing current state..." do
+      logger.info "Refreshing current state" do
         @run_context.refresh_state
       end
     end
 
-    def merge_resources
-      logger.info "Merging resources..." do
-        @run_context.merge_resources
+    def populate_resource_ids
+      logger.info "Populating resource ID's" do
+        @run_context.populate_resource_ids
+      end
+    end
+
+    def validate_resources
+      logger.info "Validating resources" do
+        @run_context.validate_resources
+      end
+    end
+
+    def compile_resources
+      logger.info "Compiling resources" do
+        @run_context.compile_resources
       end
     end
 

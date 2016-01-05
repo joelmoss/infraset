@@ -2,6 +2,8 @@ module Infraset
   class Attribute
     ATTRIBUTE_TYPES = [ String, Array, Integer ]
     attr_accessor :name, :type, :options
+    attr_reader :reference
+    attr_writer :value
 
 
     def initialize(name, type, options={})
@@ -13,16 +15,33 @@ module Infraset
       end
     end
 
-    def value
-      @value ||= default
-    end
-
-    def value=(val)
-      if val && !val.is_a?(type)
-        raise TypeError, "value of attribute '#{name}' is not a #{type}"
+    # Validate this resource. Right now this validates any required attributes, and that strings are
+    # not empty. Also validates the type of the attribute value.
+    def validate!
+      if options[:required] && blank?
+        raise "'#{name}' attribute is required"
+      elsif options[:required_if]
+        req_if = options[:required_if]
+        if req_if.is_a?(Symbol) && (respond_to?(req_if, true) ? send(req_if) : req_if) && blank?
+          raise "'#{name}' attribute is required, because `required_if` is given (`#{req_if}`)"
+        end
       end
 
-      @value = val
+      if !value.is_a?(type)
+        raise "Value of attribute '#{name}' is not a #{type}"
+      end
+    end
+
+    def reference?
+      value.is_a?(Infraset::Resource::Reference)
+    end
+
+    def reference
+      reference? && value
+    end
+
+    def value
+      @value ||= default
     end
 
     def set_value(val, sanitize_attributes:false)

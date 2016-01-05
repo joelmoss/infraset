@@ -6,7 +6,7 @@ module Infraset
     class Aws
       class Route53Record < Infraset::Resource
 
-        attribute :zone_id, String, required: true, recreate_on_update: true
+        attribute :zone_id, String, required: true, recreate_on_update: true, relation: 'aws:route53_zone'
         attribute :name, String, default: :name, required: true
         attribute :type, String, required: true
         attribute :records, Array, required: true

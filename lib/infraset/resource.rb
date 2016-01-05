@@ -3,6 +3,7 @@ require 'cleanroom'
 require 'hashdiff'
 
 require 'infraset/attribute'
+require 'infraset/resource/reference'
 
 module Infraset
   class Resource
@@ -25,6 +26,9 @@ module Infraset
           if value.equal?(NULL) # reader
             attributes[name].value
           else # writer
+            if value.is_a?(Infraset::Resource::Reference) && value.attribute.nil?
+              value.attribute = name
+            end
             attributes[name].value = value
           end
         end
@@ -72,6 +76,15 @@ module Infraset
       end
     end
 
+    def refs(ref)
+      Reference.new(ref)
+    end
+    expose :refs
+
+    def references
+      @references ||= []
+    end
+
     def diff_against(res)
       diff = HashDiff.diff(attributes_hash, res.attributes_hash)
 
@@ -111,6 +124,7 @@ module Infraset
     def to_json(a)
       {
         name: name,
+        dependencies: references,
         provider: {
           id: id,
           name: @provider,
@@ -152,17 +166,13 @@ module Infraset
       @named_attribute ||= self.class.named_attribute.dup
     end
 
-    # Validate this resource. Right now this validates any required attributes, and that strings are
-    # not empty.
+    # Validate this resource.
     def validate!
       attributes.each do |name, attr|
-        if attr.options[:required] && attributes[name].blank?
-          raise "#{self} '#{name}' attribute is required"
-        elsif attr.options[:required_if]
-          req_if = attr.options[:required_if]
-          if req_if.is_a?(Symbol) && (respond_to?(req_if, true) ? send(req_if) : req_if) && attributes[name].blank?
-            raise "#{self} '#{name}' attribute is required, because `required_if` is given (`#{req_if}`)"
-          end
+        begin
+          attr.validate!
+        rescue => e
+          raise TypeError, "`#{self}' - #{e}"
         end
       end
     end
