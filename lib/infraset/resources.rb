@@ -21,6 +21,10 @@ module Infraset
       end
     end
 
+    def refresh!
+      each { |uid,resource| resource.refresh! }
+    end
+
     # Resources are global, and therefore require a way to uniquely identify them across the state
     # file and resource files. While some resources unique identifier (UID) can be automatically
     # determined, some cannot. In this case, a unique name is required, otherwise a warning will be

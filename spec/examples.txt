@@ -1,0 +1,4 @@
+example_id                                    | status | run_time        |
+--------------------------------------------- | ------ | --------------- |
+./spec/integration/infraset_spec.rb[1:1]      | passed | 0.01069 seconds |
+./spec/unit/infraset/run_context_spec.rb[1:1] | passed | 0.00069 seconds |

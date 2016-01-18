@@ -45,8 +45,9 @@ module Infraset
     # executed.
     #
     # 1. Read the state file (if present), and populate the `state`.
+    # 2. Refresh the state by requesting existing resources from their respective provider.
     # 2. Scan the `resource_path` for Ruby files and collect the resources found within them, and
-    #    add populate the `resources`.
+    #    populate the `resources`.
     # 3. Compare the state from step 1, with the resources from step 2, which will produce and
     #    output an execution plan of changed resources.
     # 4. Execute the plan.
@@ -64,8 +65,10 @@ module Infraset
       # Collect any resources from the resource files, and validate them.
       collect_resources
 
+      p @run_context
+
       # Populate the resource ID's from the current state.
-      populate_resource_ids
+      # populate_resource_ids
 
       # Compile each resource
       compile_resources
@@ -95,25 +98,17 @@ module Infraset
     # state file is created. This state is then saved as a collection of the current resources.
     def read_state
       logger.info "Reading current state from #{configuration.state_file}" do
-        state_file = File.expand_path(configuration.state_file)
-        if File.exist?(state_file)
-          begin
-            JSON.parse(IO.read(state_file))
-          rescue => e
-            raise e.class, "Unable to read/parse state file\n     #{e}"
-          end.each { |uid,params| @run_context.add_state uid, params }
-        else
-          logger.info "State file does not exist at #{state_file}. Creating..."
-          state_dir = File.dirname(state_file)
-          if Dir.exist? state_dir
-            File.write state_file, {}.to_json
-          else
-            raise "Cannot create state file in #{state_dir}. Does that directory exist?"
-          end
-        end
+        @run_context.read_state
+        logger.debug "Found #{@run_context.count} resource(s) in state:"
+        @run_context.each { |uid,res| logger.debug "  #{uid}" }
+      end
+    end
 
-        logger.debug "Found #{@run_context.state.count} resource(s) in state:"
-        @run_context.state.each { |uid,res| logger.debug "  #{uid}" }
+    # Loop through each resource in the current state and refresh it. This only refreshes the state
+    # of existing resources by fetching the actual resource data from the provider.
+    def refresh_state
+      logger.info "Refreshing current state" do
+        @run_context.refresh!
       end
     end
 
@@ -121,9 +116,7 @@ module Infraset
     # add them to the `resources` collection.
     def collect_resources
       logger.info "Collecting resources from #{configuration.resource_path}" do
-        Dir.glob(File.join(configuration.resource_path, "*.rb")).each do |file|
-          @run_context.add_resource_from_file ResourceFile.new(file)
-        end
+        @run_context.collect
       end
     end
 
@@ -137,14 +130,6 @@ module Infraset
       end
 
       @run_context.print_plan
-    end
-
-    # Loop through each resource in the current state and refresh it. This only refreshes the state
-    # of existing resources by fetching the actual resource data from the provider.
-    def refresh_state
-      logger.info "Refreshing current state" do
-        @run_context.refresh_state
-      end
     end
 
     def populate_resource_ids
@@ -170,13 +155,6 @@ module Infraset
     def execute_resources
       logger.info "Executing plan" do
         @run_context.execute!
-      end
-    end
-
-    # Write the state back to the state file from the run context.
-    def write_state
-      logger.info "Writing state back to #{configuration.state_file}" do
-        @run_context.write_state!
       end
     end
 
